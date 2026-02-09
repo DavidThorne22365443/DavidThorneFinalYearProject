@@ -9,6 +9,7 @@ function defineAccount(sequelize) {
                 defaultValue: DataTypes.UUIDV4, // this line automatically generates a user ID (UUID)
                 primaryKey: true,
             },
+
             username: {
                 type: DataTypes.STRING(20),
                 allowNull: false,
@@ -18,6 +19,12 @@ function defineAccount(sequelize) {
                     len: [3, 20], // ensures username is not too long
                 },
             },
+
+            parkId: {
+                type: DataTypes.UUID,
+                allowNull: true,
+            },
+
         },
         {
             tableName: "accounts",

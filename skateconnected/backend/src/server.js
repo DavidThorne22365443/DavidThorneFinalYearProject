@@ -7,6 +7,8 @@ const { createSequelize } = require("./db/sequelize");
 
 const { initModels } = require("./models");
 const { accountsRouter } = require("./routes/accounts");
+const { parksRouter } = require("./routes/park");
+
 
 const app = express();
 app.use(cors());
@@ -28,7 +30,9 @@ async function start() {
         await sequelize.sync();
         console.log("✅ Models synced");
 
-        app.use("/accounts", accountsRouter(models));
+        app.use("/accounts", accountsRouter(models)); // wiring the account routes into the server
+        app.use("/park", parksRouter(models));  // wiring the park routes into the server
+
 
         app.listen(port, () => {
             console.log(`✅ Backend listening on http://localhost:${port}`);
