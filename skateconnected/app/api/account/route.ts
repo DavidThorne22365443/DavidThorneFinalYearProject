@@ -1,6 +1,5 @@
 
-
-
+import { NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.BACKEND_URL;  // eg http://localhost5000
 const BETA_ACCOUNT_ID = process.env.BETA_ACCOUNT_ID; // user ID
@@ -8,7 +7,7 @@ const BETA_ACCOUNT_ID = process.env.BETA_ACCOUNT_ID; // user ID
 
 //if env vars are missing it returns an error message as follows
 function configError(msg: string) {
-    return Response.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500 });
 }
 
 export async function GET() {
@@ -23,9 +22,9 @@ export async function GET() {
 
         // backend response is read and forwarded back to the browser
         const data = await r.json().catch(() => ({}));
-        return Response.json(data, { status: r.status });
+        return NextResponse.json(data, { status: r.status });
     } catch {
-        return Response.json({ error: "Failed to reach backend" }, { status: 502 });
+        return NextResponse.json({ error: "Failed to reach backend" }, { status: 502 });
     }
 }
 
@@ -46,13 +45,13 @@ export async function PUT(req: Request) {
         });
 
         const data = await r.json().catch(() => ({}));
-        return Response.json(data, { status: r.status });
+        return NextResponse.json(data, { status: r.status });
 
 
         //waits and reads backends response before forwarding the status back to dashboard
 
 
     } catch {
-        return Response.json({ error: "Failed to update account" }, { status: 502 });
+        return NextResponse.json({ error: "Failed to update account" }, { status: 502 });
     }
 }

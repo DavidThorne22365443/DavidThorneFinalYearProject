@@ -1,14 +1,8 @@
 const express = require("express");
-
-function isUuid(v) {
-    // verifies if UUID is valid
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
+const { validate: isUuid } = require("uuid"); // proper UUID validator
 
 function parkToDto(park) {
     return {
-
-        // each field is something that every park object will have
         id: park.id,
         name: park.name,
         city: park.city,
@@ -22,7 +16,6 @@ function parkToDto(park) {
 
 function accountToDto(account) {
     return {
-
         id: account.id,
         username: account.username,
         parkId: account.parkId,
@@ -30,22 +23,18 @@ function accountToDto(account) {
 }
 
 function parksRouter(models) {
-    // creates a router object which will be used when creating each route
     const router = express.Router();
     const { Park, Account } = models;
 
-    // CREATE route, allows users to create/add skateparks to the map
+    // CREATE park
     router.post("/", async (req, res) => {
         try {
             const { name, city, county, latitude, longitude } = req.body;
 
-
-            // if the field is empty
             if (!name || typeof name !== "string" || !name.trim()) {
                 return res.status(400).json({ error: "name is required" });
             }
 
-            // creates the skatepark based on information given by the user
             const park = await Park.create({
                 name: name.trim(),
                 city: city ?? null,
@@ -62,35 +51,47 @@ function parksRouter(models) {
             if (err?.name === "SequelizeValidationError") {
                 return res.status(400).json({ error: err.errors?.[0]?.message || "invalid input" });
             }
-            console.error("POST /parks failed:", err);
+            console.error("POST /park failed:", err);
             return res.status(500).json({ error: "internal server error" });
         }
     });
 
-    // GET route, gets the park name by ParkId
+    // LIST all parks
+    // READ park by id: GET /park/:id
     router.get("/:id", async (req, res) => {
         try {
             const { id } = req.params;
-            if (!isUuid(id)) return res.status(400).json({ error: "invalid park id (uuid)" });
+
+            if (!isUuid(id)) {
+                return res.status(400).json({ error: "invalid park id (uuid)" });
+            }
 
             const park = await Park.findByPk(id);
-            if (!park) return res.status(404).json({ error: "park not found" });
+            if (!park) {
+                return res.status(404).json({ error: "park not found" });
+            }
 
             return res.json(parkToDto(park));
         } catch (err) {
-            console.error("GET /parks/:id failed:", err);
+            console.error("GET /park/:id failed:", err);
             return res.status(500).json({ error: "internal server error" });
         }
     });
 
-    // PUT route, allows user to edit park details
+
+    // UPDATE park
     router.put("/:id", async (req, res) => {
         try {
             const { id } = req.params;
-            if (!isUuid(id)) return res.status(400).json({ error: "invalid park id (uuid)" });
+
+            if (!isUuid(id)) {
+                return res.status(400).json({ error: "invalid park id (uuid)" });
+            }
 
             const park = await Park.findByPk(id);
-            if (!park) return res.status(404).json({ error: "park not found" });
+            if (!park) {
+                return res.status(404).json({ error: "park not found" });
+            }
 
             const { name, city, county, latitude, longitude } = req.body;
 
@@ -98,18 +99,16 @@ function parksRouter(models) {
                 if (!name || typeof name !== "string" || !name.trim()) {
                     return res.status(400).json({ error: "name cannot be empty" });
                 }
-
-                // if the proposed changed is ok, then change the name
                 park.name = name.trim();
             }
+
             if (city !== undefined) park.city = city || null;
             if (county !== undefined) park.county = county || null;
-            if (latitude !== undefined) park.latitude = latitude || null;
-            if (longitude !== undefined) park.longitude = longitude || null;
+            if (latitude !== undefined) park.latitude = latitude ?? null;
+            if (longitude !== undefined) park.longitude = longitude ?? null;
 
-
-            // if everything is ok, save the changes
             await park.save();
+
             return res.json(parkToDto(park));
         } catch (err) {
             if (err?.name === "SequelizeUniqueConstraintError") {
@@ -118,49 +117,89 @@ function parksRouter(models) {
             if (err?.name === "SequelizeValidationError") {
                 return res.status(400).json({ error: err.errors?.[0]?.message || "invalid input" });
             }
-            console.error("PUT /parks/:id failed:", err);
+            console.error("PUT /park/:id failed:", err);
             return res.status(500).json({ error: "internal server error" });
         }
     });
 
-    // DELETE park, remove a park from the database
+    // DELETE park
     router.delete("/:id", async (req, res) => {
         try {
             const { id } = req.params;
-            if (!isUuid(id)) return res.status(400).json({ error: "invalid park id (uuid)" });
+
+            if (!isUuid(id)) {
+                return res.status(400).json({ error: "invalid park id (uuid)" });
+            }
 
             const deleted = await Park.destroy({ where: { id } });
-            if (!deleted) return res.status(404).json({ error: "park not found" });
+
+            if (!deleted) {
+                return res.status(404).json({ error: "park not found" });
+            }
 
             return res.status(204).send();
         } catch (err) {
-            console.error("DELETE /parks/:id failed:", err);
+            console.error("DELETE /park/:id failed:", err);
             return res.status(500).json({ error: "internal server error" });
         }
     });
 
-    // LIST users information based on a park
+    // LIST users by park
     router.get("/:id/users", async (req, res) => {
         try {
             const { id } = req.params;
-            if (!isUuid(id)) return res.status(400).json({ error: "invalid park id (uuid)" });
 
-            // ensure park exists
+            if (!isUuid(id)) {
+                return res.status(400).json({ error: "invalid park id (uuid)" });
+            }
+
             const park = await Park.findByPk(id);
-            if (!park) return res.status(404).json({ error: "park not found" });
+            if (!park) {
+                return res.status(404).json({ error: "park not found" });
+            }
 
             const accounts = await Account.findAll({
                 where: { parkId: id },
                 order: [["createdAt", "ASC"]],
             });
 
-            // returns that parks information
             return res.json(accounts.map(accountToDto));
         } catch (err) {
-            console.error("GET /parks/:id/users failed:", err);
+            console.error("GET /park/:id/users failed:", err);
             return res.status(500).json({ error: "internal server error" });
         }
     });
+
+    // LIST all parks: GET /park
+    router.get("/", async (_req, res) => {
+        try {
+            const parks = await Park.findAll({ order: [["name", "ASC"]] });
+            return res.json(parks.map(parkToDto));
+        } catch (err) {
+            console.error("GET /park failed:", err);
+            return res.status(500).json({ error: "internal server error" });
+        }
+    });
+
+// READ one park by id: GET /park/:id
+    router.get("/:id", async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            // If you're using uuid.validate, keep this.
+            // If not, you can remove validation and rely on findByPk + 404.
+            if (!isUuid(id)) return res.status(400).json({ error: "invalid park id (uuid)" });
+
+            const park = await Park.findByPk(id);
+            if (!park) return res.status(404).json({ error: "park not found" });
+
+            return res.json(parkToDto(park));
+        } catch (err) {
+            console.error("GET /park/:id failed:", err);
+            return res.status(500).json({ error: "internal server error" });
+        }
+    });
+
 
     return router;
 }

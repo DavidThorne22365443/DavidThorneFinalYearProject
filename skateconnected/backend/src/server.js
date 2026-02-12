@@ -11,6 +11,20 @@ const { parksRouter } = require("./routes/park");
 
 
 const app = express();
+
+app.use((req, res, next) => {
+    console.log("REQ IN:", req.method, req.url);
+    res.on("finish", () => console.log("REQ OUT:", req.method, req.url, res.statusCode));
+    next();
+});
+
+app.get("/ping", (req, res) => {
+    console.log("HIT /ping");
+    res.status(200).send("pong");
+});
+
+app.get("/ping", (req, res) => res.status(200).send("pong"));
+
 app.use(cors());
 app.use(express.json());
 

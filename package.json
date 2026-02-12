@@ -1,5 +1,8 @@
 {
   "devDependencies": {
     "@types/mapbox-gl": "^3.4.1"
+  },
+  "dependencies": {
+    "uuid": "^13.0.0"
   }
 }
