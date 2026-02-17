@@ -10,7 +10,14 @@ const { accountsRouter } = require("./routes/accounts");
 const { parksRouter } = require("./routes/park");
 
 
+
+
+
 const app = express();
+
+// Health and ping first — no body parsing, so they can't hang
+app.get("/health", (req, res) => res.json({ ok: true }));
+app.get("/ping", (req, res) => res.status(200).send("pong"));
 
 app.use((req, res, next) => {
     console.log("REQ IN:", req.method, req.url);
@@ -18,43 +25,46 @@ app.use((req, res, next) => {
     next();
 });
 
-app.get("/ping", (req, res) => {
-    console.log("HIT /ping");
-    res.status(200).send("pong");
+app.use(cors());
+app.use(express.json({ limit: "10mb" }));
+
+app.post("/ping", (req, res) => {
+    console.log("POST /ping hit, body:", req.body);
+    res.json({ pong: true, body: req.body });
 });
 
-app.get("/ping", (req, res) => res.status(200).send("pong"));
+const port = Number(process.env.PORT || 5001);
 
-app.use(cors());
-app.use(express.json());
+// Listen immediately so /health works even if DB is slow or hung.
+// Park and account routes are added after DB is ready.
+const server = app.listen(port, () => {
+    console.log(`✅ Backend listening on http://localhost:${port}`);
+});
 
-app.get("/health", (req, res) => res.json({ ok: true }));
+server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+        console.error(`❌ Port ${port} is already in use!`);
+        console.error(`   Kill existing processes: kill -9 $(lsof -ti :${port})`);
+        process.exit(1);
+    }
+    throw err;
+});
 
-async function start() {
-    const port = Number(process.env.PORT || 5001);
-
+async function connectDbAndMountRoutes() {
     try {
         const sequelize = createSequelize();
         await sequelize.authenticate();
         console.log("✅ Connected to Postgres via Sequelize");
 
         const models = initModels(sequelize);
-
-        // Creates tables if they don't exist (good for dev; later use migrations)
         await sequelize.sync();
         console.log("✅ Models synced");
 
-        app.use("/accounts", accountsRouter(models)); // wiring the account routes into the server
-        app.use("/park", parksRouter(models));  // wiring the park routes into the server
-
-
-        app.listen(port, () => {
-            console.log(`✅ Backend listening on http://localhost:${port}`);
-        });
+        app.use("/accounts", accountsRouter(models));
+        app.use("/park", parksRouter(models));
     } catch (err) {
-        console.error("❌ Startup failed:", err.message);
-        process.exit(1);
+        console.error("❌ DB setup failed (server still up, /health works):", err?.stack || err);
     }
 }
 
-start();
+connectDbAndMountRoutes();

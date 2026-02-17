@@ -47,14 +47,15 @@ export default function ParkAdminPage() {
             const data = await r.json();
 
             if (!r.ok) {
-                setError(data?.error || "Failed to load park state");
+                const msg = data?.detail ? `${data.error}: ${data.detail}` : (data?.error || "Failed to load park state");
+                setError(msg);
                 setParks([]);
                 return;
             }
 
             setParks(Array.isArray(data.parks) ? data.parks : []);
-        } catch {
-            setError("Failed to reach API");
+        } catch (err: any) {
+            setError(`Failed to reach API: ${err?.message || "Unknown error"}`);
             setParks([]);
         } finally {
             setLoading(false);
@@ -94,7 +95,8 @@ export default function ParkAdminPage() {
             const data = await r.json();
 
             if (!r.ok) {
-                setError(data?.error || "Create failed");
+                const msg = data?.detail ? `${data.error}: ${data.detail}` : (data?.error || "Create failed");
+                setError(msg);
                 return;
             }
 
@@ -211,8 +213,8 @@ export default function ParkAdminPage() {
                             <input className="border rounded px-3 py-2 w-full" placeholder="City (optional)" value={city} onChange={(e) => setCity(e.target.value)} />
                             <input className="border rounded px-3 py-2 w-full" placeholder="County (optional)" value={county} onChange={(e) => setCounty(e.target.value)} />
                             <div className="grid grid-cols-2 gap-2">
-                                <input className="border rounded px-3 py-2 w-full" placeholder="Latitude (optional)" value={lat} onChange={(e) => setLat(e.target.value)} />
-                                <input className="border rounded px-3 py-2 w-full" placeholder="Longitude (optional)" value={lng} onChange={(e) => setLng(e.target.value)} />
+                                <input type="number" step="any" className="border rounded px-3 py-2 w-full" placeholder="Latitude e.g. 52.66" value={lat} onChange={(e) => setLat(e.target.value)} />
+                                <input type="number" step="any" className="border rounded px-3 py-2 w-full" placeholder="Longitude e.g. -8.63" value={lng} onChange={(e) => setLng(e.target.value)} />
                             </div>
                             <button className="border rounded px-3 py-2" onClick={createPark} disabled={!name.trim()}>
                                 Create
@@ -235,8 +237,8 @@ export default function ParkAdminPage() {
                                 <input className="border rounded px-3 py-2 w-full" placeholder="County" value={editCounty} onChange={(e) => setEditCounty(e.target.value)} />
 
                                 <div className="grid grid-cols-2 gap-2">
-                                    <input className="border rounded px-3 py-2 w-full" placeholder="Latitude" value={editLat} onChange={(e) => setEditLat(e.target.value)} />
-                                    <input className="border rounded px-3 py-2 w-full" placeholder="Longitude" value={editLng} onChange={(e) => setEditLng(e.target.value)} />
+                                    <input type="number" step="any" className="border rounded px-3 py-2 w-full" placeholder="Latitude e.g. 52.66" value={editLat} onChange={(e) => setEditLat(e.target.value)} />
+                                    <input type="number" step="any" className="border rounded px-3 py-2 w-full" placeholder="Longitude e.g. -8.63" value={editLng} onChange={(e) => setEditLng(e.target.value)} />
                                 </div>
 
                                 <div className="flex gap-2">

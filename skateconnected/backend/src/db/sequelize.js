@@ -10,7 +10,7 @@ function createSequelize() {
 
     return new Sequelize(url, {
         dialect: "postgres",
-        logging: false, // set to console.log if you want to see SQL queries later
+        logging: console.log, // temp: see if INSERT runs (set back to false when done)
     });
 }
 

@@ -22,12 +22,19 @@ function accountToDto(account) {
     };
 }
 
+function toNum(val) {
+    if (val == null || val === "") return null;
+    const n = Number(val);
+    return Number.isFinite(n) ? n : null;
+}
+
 function parksRouter(models) {
     const router = express.Router();
     const { Park, Account } = models;
 
     // CREATE park
     router.post("/", async (req, res) => {
+        console.log("POST /park: handler entered");
         try {
             const { name, city, county, latitude, longitude } = req.body;
 
@@ -35,13 +42,22 @@ function parksRouter(models) {
                 return res.status(400).json({ error: "name is required" });
             }
 
-            const park = await Park.create({
-                name: name.trim(),
-                city: city ?? null,
-                county: county ?? null,
-                latitude: latitude ?? null,
-                longitude: longitude ?? null,
+            const safeLat = toNum(latitude);
+            const safeLng = toNum(longitude);
+            const createPromise = Park.create({
+                name: name.trim().slice(0, 30),
+                city: (city != null && String(city).trim()) ? String(city).trim().slice(0, 20) : null,
+                county: (county != null && String(county).trim()) ? String(county).trim().slice(0, 20) : null,
+                latitude: safeLat,
+                longitude: safeLng,
             });
+            const timeoutMs = 8000;
+            const park = await Promise.race([
+                createPromise,
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Database operation timed out")), timeoutMs)
+                ),
+            ]);
 
             return res.status(201).json(parkToDto(park));
         } catch (err) {
@@ -51,12 +67,25 @@ function parksRouter(models) {
             if (err?.name === "SequelizeValidationError") {
                 return res.status(400).json({ error: err.errors?.[0]?.message || "invalid input" });
             }
-            console.error("POST /park failed:", err);
+            console.error("POST /park failed:", err?.message || err);
+            return res.status(500).json({
+                error: "internal server error",
+                detail: process.env.NODE_ENV !== "production" ? (err?.message || String(err)) : undefined,
+            });
+        }
+    });
+
+    // LIST all parks — must be before GET /:id or "/" is matched as id
+    router.get("/", async (_req, res) => {
+        try {
+            const parks = await Park.findAll({ order: [["name", "ASC"]] });
+            return res.json(parks.map(parkToDto));
+        } catch (err) {
+            console.error("GET /park failed:", err?.stack || err);
             return res.status(500).json({ error: "internal server error" });
         }
     });
 
-    // LIST all parks
     // READ park by id: GET /park/:id
     router.get("/:id", async (req, res) => {
         try {
@@ -99,13 +128,13 @@ function parksRouter(models) {
                 if (!name || typeof name !== "string" || !name.trim()) {
                     return res.status(400).json({ error: "name cannot be empty" });
                 }
-                park.name = name.trim();
+                park.name = name.trim().slice(0, 30);
             }
 
-            if (city !== undefined) park.city = city || null;
-            if (county !== undefined) park.county = county || null;
-            if (latitude !== undefined) park.latitude = latitude ?? null;
-            if (longitude !== undefined) park.longitude = longitude ?? null;
+            if (city !== undefined) park.city = (city != null && String(city).trim()) ? String(city).trim().slice(0, 20) : null;
+            if (county !== undefined) park.county = (county != null && String(county).trim()) ? String(county).trim().slice(0, 20) : null;
+            if (latitude !== undefined) park.latitude = toNum(latitude);
+            if (longitude !== undefined) park.longitude = toNum(longitude);
 
             await park.save();
 
@@ -169,37 +198,6 @@ function parksRouter(models) {
             return res.status(500).json({ error: "internal server error" });
         }
     });
-
-    // LIST all parks: GET /park
-    router.get("/", async (_req, res) => {
-        try {
-            const parks = await Park.findAll({ order: [["name", "ASC"]] });
-            return res.json(parks.map(parkToDto));
-        } catch (err) {
-            console.error("GET /park failed:", err);
-            return res.status(500).json({ error: "internal server error" });
-        }
-    });
-
-// READ one park by id: GET /park/:id
-    router.get("/:id", async (req, res) => {
-        try {
-            const { id } = req.params;
-
-            // If you're using uuid.validate, keep this.
-            // If not, you can remove validation and rely on findByPk + 404.
-            if (!isUuid(id)) return res.status(400).json({ error: "invalid park id (uuid)" });
-
-            const park = await Park.findByPk(id);
-            if (!park) return res.status(404).json({ error: "park not found" });
-
-            return res.json(parkToDto(park));
-        } catch (err) {
-            console.error("GET /park/:id failed:", err);
-            return res.status(500).json({ error: "internal server error" });
-        }
-    });
-
 
     return router;
 }
