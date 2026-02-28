@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 const BACKEND_URL = process.env.BACKEND_URL;
 
 function configError(msg: string) {
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return Response.json({ error: msg }, { status: 500 });
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -13,9 +13,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         const { id } = await params;
         const r = await fetch(`${BACKEND_URL}/park/${id}`, { cache: "no-store" });
         const data = await r.json().catch(() => ({}));
-        return NextResponse.json(data, { status: r.status } as ResponseInit);
+        return Response.json(data, { status: r.status } as ResponseInit);
     } catch {
-        return NextResponse.json({ error: "Failed to reach backend" }, { status: 502 });
+        return Response.json({ error: "Failed to reach backend" }, { status: 502 });
     }
 }
 
@@ -33,9 +33,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         });
 
         const data = await r.json().catch(() => ({}));
-        return NextResponse.json(data, { status: r.status } as ResponseInit);
+        return Response.json(data, { status: r.status } as ResponseInit);
     } catch {
-        return NextResponse.json({ error: "Failed to update park" }, { status: 502 });
+        return Response.json({ error: "Failed to update park" }, { status: 502 });
     }
 }
 
@@ -45,8 +45,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     try {
         const { id } = await params;
         const r = await fetch(`${BACKEND_URL}/park/${id}`, { method: "DELETE" });
-        return new NextResponse(null, { status: r.status });
+        return new Response(null, { status: r.status });
     } catch {
-        return NextResponse.json({ error: "Failed to delete park" }, { status: 502 });
+        return Response.json({ error: "Failed to delete park" }, { status: 502 });
     }
 }

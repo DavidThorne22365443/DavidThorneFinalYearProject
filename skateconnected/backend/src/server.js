@@ -8,6 +8,8 @@ const { createSequelize } = require("./db/sequelize");
 const { initModels } = require("./models");
 const { accountsRouter } = require("./routes/accounts");
 const { parksRouter } = require("./routes/park");
+const { chatRouter } = require("./routes/chat");
+
 
 
 
@@ -62,6 +64,7 @@ async function connectDbAndMountRoutes() {
 
         app.use("/accounts", accountsRouter(models));
         app.use("/park", parksRouter(models));
+        app.use("/chat", chatRouter(models));
     } catch (err) {
         console.error("❌ DB setup failed (server still up, /health works):", err?.stack || err);
     }

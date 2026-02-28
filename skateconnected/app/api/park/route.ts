@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 const BACKEND_URL = process.env.BACKEND_URL;
 
 function configError(msg: string) {
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return Response.json({ error: msg }, { status: 500 });
 }
 
 export async function GET() {
@@ -21,10 +21,10 @@ export async function GET() {
             data = { raw: text };
         }
         
-        return NextResponse.json(data, { status: r.status } as ResponseInit);
+        return Response.json(data, { status: r.status } as ResponseInit);
     } catch (err) {
         console.error("GET /api/park failed:", err);
-        return NextResponse.json({ error: "Failed to reach backend" }, { status: 502 });
+        return Response.json({ error: "Failed to reach backend" }, { status: 502 });
     }
 }
 
@@ -48,9 +48,9 @@ export async function POST(req: Request) {
             data = { raw: text };
         }
         
-        return NextResponse.json(data, { status: r.status } as ResponseInit);
+        return Response.json(data, { status: r.status } as ResponseInit);
     } catch (err) {
         console.error("POST /api/park failed:", err);
-        return NextResponse.json({ error: "Failed to create park" }, { status: 502 });
+        return Response.json({ error: "Failed to create park" }, { status: 502 });
     }
 }
