@@ -1,6 +1,3 @@
-console.log("LOGIN PAGE VERSION: NEW (no fetch)");
-
-
 "use client";
 
 import { useState } from "react";
@@ -11,18 +8,46 @@ export default function LoginPage() {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [showPw, setShowPw] = useState(false);
-    const router = useRouter();
-
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    function handleSubmit(e: React.FormEvent) {
-        console.log("SUBMIT CLICKED");
+    const router = useRouter();
 
+    const canSubmit = username.trim().length >= 3 && password.length >= 6 && !loading;
+
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+        setError(null);
 
-        // TEMP: skip backend auth and just go to the map page (/)
-        router.push("/dashboard");
+        if (!canSubmit) {
+            setError("Please enter a valid username (3+ chars) and password (6+ chars).");
+            return;
+        }
 
+        setLoading(true);
+        try {
+            // IMPORTANT: call NEXT route (same-origin), NOT the backend directly.
+            const res = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include", // IMPORTANT: allows browser to store httpOnly cookie
+                body: JSON.stringify({ username: username.trim(), password }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                setError(data?.error ?? "Login failed. Check your details and try again.");
+                return;
+            }
+
+            // cookie is now set by the server; redirect to map (home screen)
+            router.push("/map");
+        } catch {
+            setError("Could not reach the server. Is Next running?");
+        } finally {
+            setLoading(false);
+        }
     }
 
     return (
@@ -52,7 +77,7 @@ export default function LoginPage() {
                             autoComplete="username"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            placeholder="e.g. davidthorne"
+                            placeholder="e.g. david"
                             className="w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 outline-none focus:ring-2 focus:ring-zinc-600"
                         />
                     </div>
@@ -91,9 +116,10 @@ export default function LoginPage() {
 
                     <button
                         type="submit"
-                        className="w-full rounded-xl bg-white text-zinc-950 font-medium py-3 hover:bg-zinc-200"
+                        disabled={!canSubmit}
+                        className="w-full rounded-xl bg-white text-zinc-950 font-medium py-3 hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Log in
+                        {loading ? "Logging in..." : "Log in"}
                     </button>
 
                     <p className="text-center text-sm text-zinc-400">

@@ -1,57 +1,83 @@
+import type { NextRequest } from "next/server";
+import { cookies } from "next/headers";
 
-import { NextResponse } from "next/server";
+const BACKEND_URL = process.env.BACKEND_URL;
 
-const BACKEND_URL = process.env.BACKEND_URL;  // eg http://localhost5000
-const BETA_ACCOUNT_ID = process.env.BETA_ACCOUNT_ID; // user ID
-
-
-//if env vars are missing it returns an error message as follows
 function configError(msg: string) {
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return Response.json({ error: msg }, { status: 500 });
 }
 
+async function getAuthHeader(): Promise<string | null> {
+    const jar = await cookies();
+    const token = jar.get("sc_token")?.value;
+
+    if (!token) return null;
+
+    return `Bearer ${token}`;
+}
+
+// GET current logged-in user
 export async function GET() {
     if (!BACKEND_URL) return configError("BACKEND_URL missing in .env.local");
-    if (!BETA_ACCOUNT_ID) return configError("BETA_ACCOUNT_ID missing in .env.local");
+
+    const auth = await getAuthHeader();
+    if (!auth) return Response.json({ error: "not logged in" }, { status: 401 });
 
     try {
-        const r = await fetch(`${BACKEND_URL}/accounts/${BETA_ACCOUNT_ID}`, {
-            // uses the url and uuid to find the account assiciated with those details
-            cache: "no-store",  // ensures fresh data is always fetched
+        const r = await fetch(`${BACKEND_URL}/accounts/me`, {
+            headers: {
+                Authorization: auth,
+            },
+            cache: "no-store",
         });
 
-        // backend response is read and forwarded back to the browser
-        const data = await r.json().catch(() => ({}));
-        return NextResponse.json(data, { status: r.status });
+        const text = await r.text();
+
+        let data: any;
+        try {
+            data = JSON.parse(text);
+        } catch {
+            data = { raw: text };
+        }
+
+        return Response.json(data, { status: r.status });
+
     } catch {
-        return NextResponse.json({ error: "Failed to reach backend" }, { status: 502 });
+        return Response.json({ error: "Failed to reach backend" }, { status: 502 });
     }
 }
 
-export async function PUT(req: Request) {
+// UPDATE current logged-in user
+export async function PUT(req: NextRequest) {
     if (!BACKEND_URL) return configError("BACKEND_URL missing in .env.local");
-    if (!BETA_ACCOUNT_ID) return configError("BETA_ACCOUNT_ID missing in .env.local");
+
+    const auth = await getAuthHeader();
+    if (!auth) return Response.json({ error: "not logged in" }, { status: 401 });
 
     try {
-        // reads the request in json. an example of a request might be {"username": "differentname"}
-        const body = await req.json();
+        const body = await req.json().catch(() => ({}));
 
-        const r = await fetch(`${BACKEND_URL}/accounts/${BETA_ACCOUNT_ID}`, {
-
-            // forwards the update to the backend
+        const r = await fetch(`${BACKEND_URL}/accounts/me`, {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },  // says to backend that the message is in json
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: auth,
+            },
             body: JSON.stringify(body),
         });
 
-        const data = await r.json().catch(() => ({}));
-        return NextResponse.json(data, { status: r.status });
+        const text = await r.text();
 
+        let data: any;
+        try {
+            data = JSON.parse(text);
+        } catch {
+            data = { raw: text };
+        }
 
-        //waits and reads backends response before forwarding the status back to dashboard
-
+        return Response.json(data, { status: r.status });
 
     } catch {
-        return NextResponse.json({ error: "Failed to update account" }, { status: 502 });
+        return Response.json({ error: "Failed to update account" }, { status: 502 });
     }
 }

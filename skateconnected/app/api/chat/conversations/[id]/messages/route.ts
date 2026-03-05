@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { cookies } from "next/headers";
 
 const BACKEND_URL = process.env.BACKEND_URL;
 
@@ -6,38 +7,50 @@ function configError(msg: string) {
     return Response.json({ error: msg }, { status: 500 });
 }
 
+async function getAuthHeader(): Promise<string | null> {
+    const jar = await cookies(); // ✅ async in your Next 16 build
+    const token = jar.get("sc_token")?.value;
+    if (!token) return null;
+    return `Bearer ${token}`;
+}
 
-
-//GET: list messages
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+// GET: list messages for a conversation
+export async function GET(
+    _req: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
     if (!BACKEND_URL) return configError("BACKEND_URL missing in .env.local");
 
-    const accountId = req.headers.get("x-account-id");
-    if (!accountId) return Response.json({ error: "x-account-id missing" }, { status: 401 });
+    const auth = await getAuthHeader();
+    if (!auth) return Response.json({ error: "not logged in" }, { status: 401 });
 
-
-    //extracting conversation id
     const { id } = await params;
 
     const r = await fetch(`${BACKEND_URL}/chat/conversations/${id}/messages`, {
-        headers: { "x-account-id": accountId },
+        headers: { Authorization: auth },
         cache: "no-store",
     });
 
     const text = await r.text();
     let data: any;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    try {
+        data = JSON.parse(text);
+    } catch {
+        data = { raw: text };
+    }
+
     return Response.json(data, { status: r.status });
 }
 
-
-//POST: create a message
-
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+// POST: create a message in a conversation
+export async function POST(
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
     if (!BACKEND_URL) return configError("BACKEND_URL missing in .env.local");
 
-    const accountId = req.headers.get("x-account-id");
-    if (!accountId) return Response.json({ error: "x-account-id missing" }, { status: 401 });
+    const auth = await getAuthHeader();
+    if (!auth) return Response.json({ error: "not logged in" }, { status: 401 });
 
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
@@ -46,13 +59,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            "x-account-id": accountId,
+            Authorization: auth,
         },
         body: JSON.stringify(body),
     });
 
     const text = await r.text();
     let data: any;
-    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    try {
+        data = JSON.parse(text);
+    } catch {
+        data = { raw: text };
+    }
+
     return Response.json(data, { status: r.status });
 }

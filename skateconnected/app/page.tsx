@@ -26,29 +26,23 @@ export default function LoginPage() {
 
         setLoading(true);
         try {
-            const res = await fetch("http://localhost:5000/api/auth/login", {
+            const res = await fetch("/api/auth/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                credentials: "include",
                 body: JSON.stringify({ username, password }),
             });
 
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
-                setError(data?.message ?? "Login failed. Check your details and try again.");
+                setError(data?.error ?? "Login failed. Check your details and try again.");
                 return;
             }
 
-            if (data?.token) {
-                localStorage.setItem("token", data.token);
-            }
-
-            // Redirect to map after login
-            router.push("/map");
-
-        } catch (err) {
-            setError("Could not reach the server. Is your backend running on port 5000?");
+            // cookie is now stored automatically
+            router.push("/map"); // or /dashboard
+        } catch {
+            setError("Could not reach the server.");
         } finally {
             setLoading(false);
         }

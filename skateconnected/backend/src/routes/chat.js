@@ -2,19 +2,7 @@ const express = require("express");
 const { validate: isUuid } = require("uuid");
 const { Op } = require("sequelize");
 
-function requireUser(models) {
-    const { Account } = models;
-    return async (req, res, next) => {
-        const userId = req.header("x-account-id");
-        if (!userId || !isUuid(userId)) {
-            return res.status(401).json({ error: "missing or invalid x-account-id" });
-        }
-        const user = await Account.findByPk(userId);
-        if (!user) return res.status(401).json({ error: "account not found" });
-        req.user = user;
-        next();
-    };
-}
+
 
 function messageToDto(m) {
     return {
@@ -30,7 +18,8 @@ function chatRouter(models) {
     const router = express.Router();
     const { Account, Conversation, ConversationParticipant, Message, sequelize } = models;
 
-    router.use(requireUser(models));
+    const { requireAuth } = require("../middleware/requireAuth");
+    router.use(requireAuth(models));
 
     // 1) Resolve existing chats for logged-in user
     // GET /chat/conversations

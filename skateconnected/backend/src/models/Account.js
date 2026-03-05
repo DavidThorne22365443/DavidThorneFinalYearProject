@@ -1,4 +1,6 @@
 const { DataTypes } = require("sequelize");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 function defineAccount(sequelize) {
     const Account = sequelize.define(
@@ -18,6 +20,11 @@ function defineAccount(sequelize) {
                     notEmpty: true,
                     len: [3, 20], // ensures username is not too long
                 },
+            },
+
+            passwordHash: {
+                type: DataTypes.STRING,
+                allowNull: false,
             },
 
             parkId: {

@@ -40,12 +40,12 @@ const port = Number(process.env.PORT || 5001);
 // Listen immediately so /health works even if DB is slow or hung.
 // Park and account routes are added after DB is ready.
 const server = app.listen(port, () => {
-    console.log(`✅ Backend listening on http://localhost:${port}`);
+    console.log(`Backend listening on http://localhost:${port}`);
 });
 
 server.on("error", (err) => {
     if (err.code === "EADDRINUSE") {
-        console.error(`❌ Port ${port} is already in use!`);
+        console.error(`Port ${port} is already in use!`);
         console.error(`   Kill existing processes: kill -9 $(lsof -ti :${port})`);
         process.exit(1);
     }
@@ -56,17 +56,17 @@ async function connectDbAndMountRoutes() {
     try {
         const sequelize = createSequelize();
         await sequelize.authenticate();
-        console.log("✅ Connected to Postgres via Sequelize");
+        console.log("Connected to Postgres via Sequelize");
 
         const models = initModels(sequelize);
-        await sequelize.sync();
-        console.log("✅ Models synced");
+        await sequelize.sync({ alter: true }); //allows table to be altered if necessary
+        console.log("✅ Models synced (alter)");
 
         app.use("/accounts", accountsRouter(models));
         app.use("/park", parksRouter(models));
         app.use("/chat", chatRouter(models));
     } catch (err) {
-        console.error("❌ DB setup failed (server still up, /health works):", err?.stack || err);
+        console.error("DB setup failed (server still up, /health works):", err?.stack || err);
     }
 }
 
