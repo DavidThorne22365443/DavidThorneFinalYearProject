@@ -1,79 +1,72 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-
-// Interfaces for our Static Data
-interface UserData {
-    profilePic: string;
-    username: string;
-    fullName: string;
-}
-
-interface ChatMessage {
-    id: number;
-    sender: string;
-    text: string;
-}
-
-// 1. Static JSON Data
-const userData: UserData = {
-    profilePic: "https://api.dicebear.com/7.x/avataaars/svg?seed=Limerick",
-    username: "@limerick_explorer",
-    fullName: "John Doe"
-};
-
-const chatMessages: ChatMessage[] = [
-    { id: 1, sender: "System", text: "Welcome to Limerick City Map." },
-    { id: 2, sender: "User", text: "How do I get to King John's Castle?" }
-];
+import Link from 'next/link';
+import { getCityCenter } from '@/lib/cities';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
+const DEFAULT_CENTER: [number, number] = [-8.6238, 52.6680];
+const DEFAULT_ZOOM = 11;
+
 const Map: React.FC = () => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<mapboxgl.Map | null>(null);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [accountLoaded, setAccountLoaded] = useState(false);
+    const [account, setAccount] = useState<{ city?: string; isAdmin?: boolean } | null>(null);
+    const userCityCenter = account?.city ? getCityCenter(account.city) : null;
 
     useEffect(() => {
-        if (!mapContainerRef.current || mapRef.current) return;
+        fetch('/api/account', { credentials: 'include' })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data: { city?: string; isAdmin?: boolean } | null) => {
+                setAccount(data ?? null);
+                setAccountLoaded(true);
+            })
+            .catch(() => setAccountLoaded(true));
+    }, []);
 
+    useEffect(() => {
+        if (!accountLoaded || !mapContainerRef.current || mapRef.current) return;
+
+        const center = userCityCenter ?? DEFAULT_CENTER;
         const limerickBounds: [number, number, number, number] = [-9.37, 52.27, -8.15, 52.76];
 
         const mapInstance = new mapboxgl.Map({
             container: mapContainerRef.current,
             style: 'mapbox://styles/mapbox/streets-v12',
-            center: [-8.6238, 52.6680],
-            zoom: 11,
+            center,
+            zoom: DEFAULT_ZOOM,
         });
 
         mapRef.current = mapInstance;
 
         mapInstance.on('load', () => {
-            // Using explicit options to satisfy the IDE/TypeScript
             const options: mapboxgl.FitBoundsOptions = { padding: 20, animate: false };
-            mapInstance.fitBounds(limerickBounds, options);
+            if (userCityCenter) {
+                const [lng, lat] = userCityCenter;
+                const padding = 0.05;
+                mapInstance.fitBounds(
+                    [lng - padding, lat - padding, lng + padding, lat + padding],
+                    options
+                );
+            } else {
+                mapInstance.fitBounds(limerickBounds, options);
+            }
         });
 
         return () => {
-
             if (mapInstance) {
                 mapInstance.remove();
                 mapRef.current = null;
             }
         };
-    }, []);
-
-    // Shared styling for the floating cards
-    const cardStyle: React.CSSProperties = {
-        position: 'absolute',
-        backgroundColor: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.15)',
-        zIndex: 10,
-        fontFamily: 'sans-serif',
-    };
+    }, [accountLoaded, userCityCenter]);
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden' }}>
@@ -81,39 +74,97 @@ const Map: React.FC = () => {
             {/* MAP CONTAINER */}
             <div ref={mapContainerRef} style={{ position: 'absolute', top: 0, bottom: 0, width: '100%' }} />
 
-            {/* USER PROFILE (Bottom Left) */}
-            <div style={{ ...cardStyle, bottom: '30px', left: '30px', padding: '15px', display: 'flex', alignItems: 'center', gap: '12px', minWidth: '220px' }}>
-                <img src={userData.profilePic} alt="Profile" style={{ width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #f0f0f0' }} />
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{userData.username}</span>
-                    <span style={{ fontSize: '13px', color: '#666' }}>{userData.fullName}</span>
-                </div>
-            </div>
+            {/* TOP-LEFT FLOATING NAVBAR */}
+            <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
 
-            {/* CHAT WINDOW (Bottom Right) */}
-            <div style={{ ...cardStyle, bottom: '30px', right: '30px', width: '300px', height: '400px', display: 'flex', flexDirection: 'column' }}>
-                {/* Chat Header */}
-                <div style={{ padding: '15px', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>Chat</div>
+                {/* Main nav pill */}
+                <div className="flex items-center gap-1 bg-white rounded-2xl shadow-lg px-4 py-2.5">
 
-                {/* Chat Messages */}
-                <div style={{ flex: 1, padding: '15px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {chatMessages.map((msg) => (
-                        <div key={msg.id} style={{ fontSize: '13px' }}>
-                            <span style={{ fontWeight: 'bold', display: 'block' }}>{msg.sender}:</span>
-                            <div style={{ backgroundColor: '#f3f4f6', padding: '8px', borderRadius: '8px', marginTop: '4px' }}>{msg.text}</div>
-                        </div>
-                    ))}
+                    {/* Brand */}
+                    <span className="font-bold text-zinc-900 text-sm mr-3 whitespace-nowrap">
+                        skateconnected.ie
+                    </span>
+
+                    <div className="w-px h-4 bg-zinc-200 mr-1" />
+
+                    {/* Search icon */}
+                    <button
+                        onClick={() => setSearchOpen(o => !o)}
+                        className={`p-1.5 rounded-xl transition-colors ${searchOpen ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800'}`}
+                        aria-label="Search"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                        </svg>
+                    </button>
+
+                    <div className="w-px h-4 bg-zinc-200 mx-1" />
+
+                    {/* Nav links */}
+                    <Link
+                        href="/chat"
+                        className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap"
+                    >
+                        Chats
+                    </Link>
+                    {account?.isAdmin ? (
+                        <>
+                            <Link
+                                href="/account-admin"
+                                className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap"
+                            >
+                                Users
+                            </Link>
+                            <Link
+                                href="/park-admin"
+                                className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap"
+                            >
+                                Skateparks
+                            </Link>
+                        </>
+                    ) : (
+                        <Link
+                            href="/skateparks"
+                            className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap"
+                        >
+                            Skateparks
+                        </Link>
+                    )}
+                    <span
+                        className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-300 cursor-not-allowed whitespace-nowrap"
+                        title="Coming soon"
+                    >
+                        Skatespots
+                    </span>
                 </div>
 
-                {/* Chat Input Placeholder */}
-                <div style={{ padding: '10px', borderTop: '1px solid #eee' }}>
-                    <input
-                        type="text"
-                        placeholder="Type a message..."
-                        disabled
-                        style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '13px' }}
-                    />
-                </div>
+                {/* Search bar — shown when search icon is toggled */}
+                {searchOpen && (
+                    <div className="flex items-center gap-2 bg-white rounded-2xl shadow-lg px-4 py-3 w-80">
+                        <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                        </svg>
+                        <input
+                            autoFocus
+                            type="text"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            placeholder="Search people, skateparks, spots…"
+                            className="flex-1 text-sm text-zinc-800 outline-none placeholder:text-zinc-400 bg-transparent"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="text-zinc-400 hover:text-zinc-600"
+                                aria-label="Clear search"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
         </div>
