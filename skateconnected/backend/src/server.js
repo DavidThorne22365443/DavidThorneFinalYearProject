@@ -9,6 +9,7 @@ const { initModels } = require("./models");
 const { accountsRouter } = require("./routes/accounts");
 const { parksRouter } = require("./routes/park");
 const { chatRouter } = require("./routes/chat");
+const { seedAdmin } = require("./seedAdmin");
 
 
 
@@ -59,8 +60,10 @@ async function connectDbAndMountRoutes() {
         console.log("Connected to Postgres via Sequelize");
 
         const models = initModels(sequelize);
-        await sequelize.sync({ alter: true }); //allows table to be altered if necessary
+        await sequelize.sync({ alter: true });
         console.log("✅ Models synced (alter)");
+
+        await seedAdmin(models.Account);
 
         app.use("/accounts", accountsRouter(models));
         app.use("/park", parksRouter(models));

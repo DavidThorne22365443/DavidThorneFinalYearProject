@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type Park = {
     id: string;
@@ -13,7 +15,14 @@ type Park = {
     updatedAt?: string;
 };
 
+type Account = { id: string; username: string; isAdmin?: boolean };
+
 export default function ParkAdminPage() {
+    const router = useRouter();
+    const [user, setUser] = useState<Account | null>(null);
+    const [authChecking, setAuthChecking] = useState(true);
+    const [accessDenied, setAccessDenied] = useState(false);
+
     const [parks, setParks] = useState<Park[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -39,6 +48,18 @@ export default function ParkAdminPage() {
     const [editLat, setEditLat] = useState("");
     const [editLng, setEditLng] = useState("");
 
+    const [searchQuery, setSearchQuery] = useState("");
+    const filteredParks = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return parks;
+        return parks.filter(
+            (p) =>
+                (p.name ?? "").toLowerCase().includes(q) ||
+                (p.city ?? "").toLowerCase().includes(q) ||
+                (p.county ?? "").toLowerCase().includes(q)
+        );
+    }, [parks, searchQuery]);
+
     async function loadOnce() {
         setLoading(true);
         setError(null);
@@ -63,8 +84,36 @@ export default function ParkAdminPage() {
     }
 
     useEffect(() => {
-        loadOnce();
-    }, []);
+        (async () => {
+            setAuthChecking(true);
+            setAccessDenied(false);
+            try {
+                const r = await fetch("/api/account", { cache: "no-store" });
+                if (r.status === 401) {
+                    router.replace("/login");
+                    return;
+                }
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    setAccessDenied(true);
+                    setUser(null);
+                    return;
+                }
+                setUser(data);
+                if (!data?.isAdmin) {
+                    setAccessDenied(true);
+                    return;
+                }
+                setAccessDenied(false);
+            } finally {
+                setAuthChecking(false);
+            }
+        })();
+    }, [router]);
+
+    useEffect(() => {
+        if (!authChecking && !accessDenied) loadOnce();
+    }, [authChecking, accessDenied]);
 
     // Keep edit form in sync when selecting a park
     useEffect(() => {
@@ -166,9 +215,31 @@ export default function ParkAdminPage() {
         }
     }
 
+    if (authChecking) {
+        return (
+            <div className="p-6 max-w-5xl mx-auto">
+                <p>Checking access…</p>
+            </div>
+        );
+    }
+
+    if (accessDenied) {
+        return (
+            <div className="p-6 max-w-5xl mx-auto space-y-4">
+                <h1 className="text-2xl font-bold">Park Admin</h1>
+                <p className="text-red-600">Access denied. Admin only.</p>
+                <Link href="/map" className="text-blue-600 hover:underline">Back to map</Link>
+            </div>
+        );
+    }
+
     return (
         <div className="p-6 max-w-5xl mx-auto space-y-6">
-            <h1 className="text-2xl font-bold">Park Admin</h1>
+            <div className="flex items-center gap-4">
+                <h1 className="text-2xl font-bold">Park Admin</h1>
+                <Link href="/map" className="text-sm text-blue-600 hover:underline">Map</Link>
+                <Link href="/account-admin" className="text-sm text-blue-600 hover:underline">Account Admin</Link>
+            </div>
 
             {loading && <p>Loading…</p>}
             {error && <p className="text-red-600">{error}</p>}
@@ -182,9 +253,15 @@ export default function ParkAdminPage() {
                             Reload
                         </button>
                     </div>
-
+                    <input
+                        type="text"
+                        placeholder="Search by name, city, or county…"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full border rounded px-3 py-2 text-sm"
+                    />
                     <div className="max-h-[420px] overflow-auto border rounded">
-                        {parks.map((p) => (
+                        {filteredParks.map((p) => (
                             <button
                                 key={p.id}
                                 onClick={() => setSelectedId(p.id)}
@@ -198,7 +275,9 @@ export default function ParkAdminPage() {
                                 </div>
                             </button>
                         ))}
-                        {parks.length === 0 && !loading && <div className="p-3 text-gray-600">No parks yet.</div>}
+                        {filteredParks.length === 0 && !loading && (
+                            <div className="p-3 text-gray-600">{parks.length === 0 ? "No parks yet." : "No parks match your search."}</div>
+                        )}
                     </div>
                 </div>
 

@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
+    const searchParams = useSearchParams();
+    const verified = searchParams.get("verified") === "1";
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [showPw, setShowPw] = useState(false);
@@ -37,7 +39,11 @@ export default function LoginPage() {
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
-                setError(data?.error ?? "Login failed. Check your details and try again.");
+                if (res.status === 403 && data?.code === "EMAIL_NOT_VERIFIED") {
+                    setError("Please verify your email first. Check your inbox for the verification code.");
+                } else {
+                    setError(data?.error ?? "Login failed. Check your details and try again.");
+                }
                 return;
             }
 
@@ -60,6 +66,11 @@ export default function LoginPage() {
                     </p>
                 </div>
 
+                {verified && (
+                    <div className="mb-4 rounded-xl border border-green-800/60 bg-green-950/40 px-4 py-3 text-sm text-green-200">
+                        Email verified. You can now log in.
+                    </div>
+                )}
                 {error && (
                     <div className="mb-4 rounded-xl border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-200">
                         {error}

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthHeader } from "@/lib/auth";
 
 const BACKEND_URL = process.env.BACKEND_URL;
 
@@ -31,11 +32,14 @@ export async function GET() {
 export async function POST(req: Request) {
     if (!BACKEND_URL) return configError("BACKEND_URL missing in .env.local");
 
+    const auth = await getAuthHeader();
+    if (!auth) return Response.json({ error: "admin only" }, { status: 401 });
+
     try {
         const body = await req.json();
         const r = await fetch(`${BACKEND_URL}/park`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", Authorization: auth },
             body: JSON.stringify(body),
         });
         

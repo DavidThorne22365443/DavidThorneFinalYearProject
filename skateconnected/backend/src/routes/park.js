@@ -1,5 +1,6 @@
 const express = require("express");
-const { validate: isUuid } = require("uuid"); // proper UUID validator
+const { validate: isUuid } = require("uuid");
+const { requireAuth, requireAdmin } = require("../middleware/requireAuth");
 
 function parkToDto(park) {
     return {
@@ -31,9 +32,10 @@ function toNum(val) {
 function parksRouter(models) {
     const router = express.Router();
     const { Park, Account } = models;
+    const auth = requireAuth(models);
 
-    // CREATE park
-    router.post("/", async (req, res) => {
+    // CREATE park (admin only)
+    router.post("/", auth, requireAdmin, async (req, res) => {
         console.log("POST /park: handler entered");
         try {
             const { name, city, county, latitude, longitude } = req.body;
@@ -86,7 +88,7 @@ function parksRouter(models) {
         }
     });
 
-    // READ park by id: GET /park/:id
+    // READ park by id
     router.get("/:id", async (req, res) => {
         try {
             const { id } = req.params;
@@ -108,8 +110,8 @@ function parksRouter(models) {
     });
 
 
-    // UPDATE park
-    router.put("/:id", async (req, res) => {
+    // UPDATE park (admin only)
+    router.put("/:id", auth, requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
 
@@ -151,8 +153,8 @@ function parksRouter(models) {
         }
     });
 
-    // DELETE park
-    router.delete("/:id", async (req, res) => {
+    // DELETE park (admin only)
+    router.delete("/:id", auth, requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
 

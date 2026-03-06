@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthHeader } from "@/lib/auth";
 
 const BACKEND_URL = process.env.BACKEND_URL;
 
@@ -22,13 +23,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
     if (!BACKEND_URL) return configError("BACKEND_URL missing in .env.local");
 
+    const auth = await getAuthHeader();
+    if (!auth) return Response.json({ error: "admin only" }, { status: 401 });
+
     try {
         const { id } = await params;
         const body = await req.json();
 
         const r = await fetch(`${BACKEND_URL}/park/${id}`, {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", Authorization: auth },
             body: JSON.stringify(body),
         });
 
@@ -42,9 +46,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
     if (!BACKEND_URL) return configError("BACKEND_URL missing in .env.local");
 
+    const auth = await getAuthHeader();
+    if (!auth) return Response.json({ error: "admin only" }, { status: 401 });
+
     try {
         const { id } = await params;
-        const r = await fetch(`${BACKEND_URL}/park/${id}`, { method: "DELETE" });
+        const r = await fetch(`${BACKEND_URL}/park/${id}`, { method: "DELETE", headers: { Authorization: auth } });
         return new Response(null, { status: r.status });
     } catch {
         return Response.json({ error: "Failed to delete park" }, { status: 502 });

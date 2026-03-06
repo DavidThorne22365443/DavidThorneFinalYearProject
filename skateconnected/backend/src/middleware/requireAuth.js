@@ -16,6 +16,7 @@ function requireAuth(models) {
             if (!user) return res.status(401).json({ error: "account not found" });
 
             req.user = user;
+            req.userId = user.id;
             next();
         } catch (e) {
             return res.status(401).json({ error: "invalid or expired token" });
@@ -23,4 +24,11 @@ function requireAuth(models) {
     };
 }
 
-module.exports = { requireAuth };
+function requireAdmin(req, res, next) {
+    if (!req.user || !req.user.isAdmin) {
+        return res.status(403).json({ error: "admin only" });
+    }
+    next();
+}
+
+module.exports = { requireAuth, requireAdmin };

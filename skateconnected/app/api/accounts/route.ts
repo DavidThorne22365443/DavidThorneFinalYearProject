@@ -7,68 +7,52 @@ function configError(msg: string) {
     return Response.json({ error: msg }, { status: 500 });
 }
 
-// GET current logged-in user
 export async function GET() {
     if (!BACKEND_URL) return configError("BACKEND_URL missing in .env.local");
 
     const auth = await getAuthHeader();
-    if (!auth) return Response.json({ error: "not logged in" }, { status: 401 });
+    if (!auth) return Response.json({ error: "admin only" }, { status: 401 });
 
     try {
-        const r = await fetch(`${BACKEND_URL}/accounts/me`, {
-            headers: {
-                Authorization: auth,
-            },
+        const r = await fetch(`${BACKEND_URL}/accounts`, {
+            headers: { Authorization: auth },
             cache: "no-store",
         });
-
         const text = await r.text();
-
-        let data: any;
+        let data: unknown;
         try {
             data = JSON.parse(text);
         } catch {
             data = { raw: text };
         }
-
         return Response.json(data, { status: r.status });
-
     } catch {
         return Response.json({ error: "Failed to reach backend" }, { status: 502 });
     }
 }
 
-// UPDATE current logged-in user
-export async function PUT(req: NextRequest) {
+export async function POST(req: NextRequest) {
     if (!BACKEND_URL) return configError("BACKEND_URL missing in .env.local");
 
     const auth = await getAuthHeader();
-    if (!auth) return Response.json({ error: "not logged in" }, { status: 401 });
+    if (!auth) return Response.json({ error: "admin only" }, { status: 401 });
 
     try {
         const body = await req.json().catch(() => ({}));
-
-        const r = await fetch(`${BACKEND_URL}/accounts/me`, {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: auth,
-            },
+        const r = await fetch(`${BACKEND_URL}/accounts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: auth },
             body: JSON.stringify(body),
         });
-
         const text = await r.text();
-
-        let data: any;
+        let data: unknown;
         try {
             data = JSON.parse(text);
         } catch {
             data = { raw: text };
         }
-
         return Response.json(data, { status: r.status });
-
     } catch {
-        return Response.json({ error: "Failed to update account" }, { status: 502 });
+        return Response.json({ error: "Failed to create account" }, { status: 502 });
     }
 }
