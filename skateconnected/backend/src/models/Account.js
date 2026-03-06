@@ -18,8 +18,15 @@ function defineAccount(sequelize) {
                 unique: true,
                 validate: {
                     notEmpty: true,
-                    len: [3, 20], // ensures username is not too long
+                    len: [3, 20],
                 },
+            },
+
+            email: {
+                type: DataTypes.STRING(255),
+                allowNull: true,
+                unique: true,
+                validate: { isEmail: true },
             },
 
             passwordHash: {
@@ -32,11 +39,56 @@ function defineAccount(sequelize) {
                 allowNull: true,
             },
 
+            firstName: {
+                type: DataTypes.STRING(50),
+                allowNull: true,
+            },
+            lastName: {
+                type: DataTypes.STRING(50),
+                allowNull: true,
+            },
+            showLastName: {
+                type: DataTypes.BOOLEAN,
+                allowNull: false,
+                defaultValue: true,
+            },
+            favouriteTrick: {
+                type: DataTypes.STRING(80),
+                allowNull: true,
+            },
+            city: {
+                type: DataTypes.STRING(50),
+                allowNull: true,
+            },
+
+            emailVerified: {
+                type: DataTypes.BOOLEAN,
+                allowNull: false,
+                defaultValue: true,
+            },
+            verificationCode: {
+                type: DataTypes.STRING(10),
+                allowNull: true,
+            },
+            verificationCodeExpiresAt: {
+                type: DataTypes.DATE,
+                allowNull: true,
+            },
+
+            isAdmin: {
+                type: DataTypes.BOOLEAN,
+                allowNull: false,
+                defaultValue: false,
+            },
+
         },
         {
             tableName: "accounts",
-            timestamps: true, //allows us to see when the account was created or updated
-            indexes: [{ unique: true, fields: ["username"] }],
+            timestamps: true,
+            indexes: [
+                { unique: true, fields: ["username"] },
+                { unique: true, fields: ["email"] },
+            ],
         }
     );
 

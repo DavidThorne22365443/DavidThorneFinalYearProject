@@ -1,79 +1,153 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { sendVerificationEmail } = require("../lib/sendVerificationEmail");
+const { requireAuth, requireAdmin } = require("../middleware/requireAuth");
 
-// uuid regex (same as you had)
 function isUuid(v) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 }
 
-// SAFE auth middleware: always responds or calls next()
-function requireAuth(req, res, next) {
-    const header = req.header("authorization") || "";
-    const [type, token] = header.split(" ");
-
-    if (type !== "Bearer" || !token) {
-        return res.status(401).json({ error: "missing bearer token" });
-    }
-
-    if (!process.env.JWT_SECRET) {
-        return res.status(500).json({ error: "JWT_SECRET missing on server" });
-    }
-
-    try {
-        const payload = jwt.verify(token, process.env.JWT_SECRET);
-        const userId = payload?.sub;
-
-        if (!userId || typeof userId !== "string" || !isUuid(userId)) {
-            return res.status(401).json({ error: "invalid token payload" });
-        }
-
-        req.userId = userId;
-        return next();
-    } catch (err) {
-        return res.status(401).json({ error: "invalid or expired token" });
-    }
+function accountToSafeJson(account) {
+    const o = account.toJSON ? account.toJSON() : account;
+    const { passwordHash, verificationCode, verificationCodeExpiresAt, ...safe } = o;
+    return safe;
 }
 
 function accountsRouter(models) {
     const router = express.Router();
-    const { Account } = models;
+    const { Account, PendingRegistration } = models;
 
     // -----------------------
     // AUTH
     // -----------------------
 
-    // POST /accounts/register
+    // POST /accounts/register — store pending signup and send code; no account created yet
     router.post("/register", async (req, res) => {
         try {
-            const { username, password } = req.body || {};
+            const {
+                username,
+                password,
+                email,
+                firstName,
+                lastName,
+                showLastName,
+                favouriteTrick,
+                city,
+            } = req.body || {};
 
             if (!username || typeof username !== "string" || !username.trim()) {
                 return res.status(400).json({ error: "username is required" });
+            }
+            if (!email || typeof email !== "string" || !email.trim()) {
+                return res.status(400).json({ error: "email is required" });
+            }
+            const emailTrimmed = email.trim().toLowerCase();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(emailTrimmed)) {
+                return res.status(400).json({ error: "please enter a valid email address" });
             }
             if (!password || typeof password !== "string" || password.length < 6) {
                 return res.status(400).json({ error: "password must be at least 6 characters" });
             }
 
-            const passwordHash = await bcrypt.hash(password, 10);
+            const existingUsername = await Account.findOne({ where: { username: username.trim() } });
+            if (existingUsername) {
+                return res.status(409).json({ error: "An account with this username already exists" });
+            }
+            const existingEmail = await Account.findOne({ where: { email: emailTrimmed } });
+            if (existingEmail) {
+                return res.status(409).json({ error: "An account with this email already exists" });
+            }
 
-            const account = await Account.create({
+            const passwordHash = await bcrypt.hash(password, 10);
+            const verificationCode = String(Math.floor(100000 + Math.random() * 900000));
+            const verificationCodeExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+            await PendingRegistration.destroy({ where: { email: emailTrimmed } });
+            await PendingRegistration.create({
+                email: emailTrimmed,
+                verificationCode,
+                verificationCodeExpiresAt,
                 username: username.trim(),
                 passwordHash,
+                firstName: firstName != null ? String(firstName).trim().slice(0, 50) : null,
+                lastName: lastName != null ? String(lastName).trim().slice(0, 50) : null,
+                showLastName: showLastName !== false,
+                favouriteTrick: favouriteTrick != null && String(favouriteTrick).trim() ? String(favouriteTrick).trim().slice(0, 80) : null,
+                city: city != null && String(city).trim() ? String(city).trim().slice(0, 50) : null,
             });
 
+            await sendVerificationEmail(emailTrimmed, verificationCode);
+
             return res.status(201).json({
-                id: account.id,
-                username: account.username,
-                parkId: account.parkId ?? null,
-                createdAt: account.createdAt,
-                updatedAt: account.updatedAt,
+                message: "Check your email for a verification code",
+                email: emailTrimmed,
             });
         } catch (err) {
-            if (err?.name === "SequelizeUniqueConstraintError") {
-                return res.status(409).json({ error: "username already exists" });
-            }
             console.error("POST /accounts/register failed:", err);
+            return res.status(500).json({ error: "internal server error" });
+        }
+    });
+
+    // POST /accounts/verify-email — only then create the account
+    router.post("/verify-email", async (req, res) => {
+        try {
+            const { email, code } = req.body || {};
+            if (!email || typeof email !== "string" || !email.trim()) {
+                return res.status(400).json({ error: "email is required" });
+            }
+            if (!code || typeof code !== "string" || !code.trim()) {
+                return res.status(400).json({ error: "verification code is required" });
+            }
+
+            const emailTrimmed = email.trim().toLowerCase();
+            const codeTrimmed = code.trim();
+            const now = new Date();
+
+            const pending = await PendingRegistration.findOne({
+                where: {
+                    email: emailTrimmed,
+                    verificationCode: codeTrimmed,
+                },
+            });
+
+            if (!pending) {
+                return res.status(400).json({ error: "Invalid or expired verification code" });
+            }
+            if (pending.verificationCodeExpiresAt < now) {
+                await PendingRegistration.destroy({ where: { email: emailTrimmed } });
+                return res.status(400).json({ error: "Verification code has expired" });
+            }
+
+            const existingUsername = await Account.findOne({ where: { username: pending.username } });
+            if (existingUsername) {
+                await PendingRegistration.destroy({ where: { email: emailTrimmed } });
+                return res.status(409).json({ error: "An account with this username was created meanwhile. Please log in or register with a different username." });
+            }
+            const existingEmail = await Account.findOne({ where: { email: emailTrimmed } });
+            if (existingEmail) {
+                await PendingRegistration.destroy({ where: { email: emailTrimmed } });
+                return res.status(409).json({ error: "An account with this email already exists" });
+            }
+
+            await Account.create({
+                username: pending.username,
+                email: emailTrimmed,
+                passwordHash: pending.passwordHash,
+                firstName: pending.firstName,
+                lastName: pending.lastName,
+                showLastName: pending.showLastName,
+                favouriteTrick: pending.favouriteTrick,
+                city: pending.city,
+                emailVerified: true,
+            });
+
+            await PendingRegistration.destroy({ where: { email: emailTrimmed } });
+
+            return res.status(200).json({ message: "Email verified. You can now log in." });
+        } catch (err) {
+            console.error("POST /accounts/verify-email failed:", err);
             return res.status(500).json({ error: "internal server error" });
         }
     });
@@ -92,6 +166,13 @@ function accountsRouter(models) {
 
             const account = await Account.findOne({ where: { username: username.trim() } });
             if (!account) return res.status(401).json({ error: "invalid credentials" });
+
+            if (!account.emailVerified) {
+                return res.status(403).json({
+                    error: "Please verify your email first. Check your inbox for the verification code.",
+                    code: "EMAIL_NOT_VERIFIED",
+                });
+            }
 
             const ok = await bcrypt.compare(password, account.passwordHash);
             if (!ok) return res.status(401).json({ error: "invalid credentials" });
@@ -112,6 +193,11 @@ function accountsRouter(models) {
                     id: account.id,
                     username: account.username,
                     parkId: account.parkId ?? null,
+                    firstName: account.firstName,
+                    lastName: account.lastName,
+                    showLastName: account.showLastName,
+                    favouriteTrick: account.favouriteTrick,
+                    city: account.city,
                     createdAt: account.createdAt,
                     updatedAt: account.updatedAt,
                 },
@@ -122,19 +208,12 @@ function accountsRouter(models) {
         }
     });
 
+    const auth = requireAuth(models);
+
     // GET /accounts/me   (IMPORTANT: must be BEFORE "/:id")
-    router.get("/me", requireAuth, async (req, res) => {
+    router.get("/me", auth, async (req, res) => {
         try {
-            // debug logs so we can see where it would hang
-            console.log("GET /accounts/me userId =", req.userId);
-
-            const account = await Account.findByPk(req.userId, {
-                attributes: ["id", "username", "parkId", "createdAt", "updatedAt"],
-            });
-
-            if (!account) return res.status(404).json({ error: "account not found" });
-
-            return res.json(account);
+            return res.json(accountToSafeJson(req.user));
         } catch (err) {
             console.error("GET /accounts/me failed:", err);
             return res.status(500).json({ error: "internal server error" });
@@ -142,11 +221,25 @@ function accountsRouter(models) {
     });
 
     // -----------------------
-    // EXISTING CRUD
+    // ADMIN-ONLY CRUD
     // -----------------------
 
-    // POST /accounts  (old create route; keep if you still want it)
-    router.post("/", async (req, res) => {
+    // GET /accounts  (list all — admin only)
+    router.get("/", auth, requireAdmin, async (req, res) => {
+        try {
+            const accounts = await Account.findAll({
+                order: [["username", "ASC"]],
+                attributes: ["id", "username", "email", "parkId", "firstName", "lastName", "showLastName", "favouriteTrick", "city", "emailVerified", "isAdmin", "createdAt", "updatedAt"],
+            });
+            return res.json(accounts);
+        } catch (err) {
+            console.error("GET /accounts failed:", err);
+            return res.status(500).json({ error: "internal server error" });
+        }
+    });
+
+    // POST /accounts  (admin create; minimal)
+    router.post("/", auth, requireAdmin, async (req, res) => {
         try {
             const { username } = req.body;
 
@@ -155,7 +248,7 @@ function accountsRouter(models) {
             }
 
             const account = await Account.create({ username: username.trim() });
-            return res.status(201).json(account);
+            return res.status(201).json(accountToSafeJson(account));
         } catch (err) {
             if (err?.name === "SequelizeUniqueConstraintError") {
                 return res.status(409).json({ error: "username already exists" });
@@ -168,8 +261,8 @@ function accountsRouter(models) {
         }
     });
 
-    // GET /accounts/:id
-    router.get("/:id", async (req, res) => {
+    // GET /accounts/:id  (admin only)
+    router.get("/:id", auth, requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
 
@@ -182,15 +275,15 @@ function accountsRouter(models) {
                 return res.status(404).json({ error: "account not found" });
             }
 
-            return res.json(account);
+            return res.json(accountToSafeJson(account));
         } catch (err) {
             console.error("GET /accounts/:id failed:", err);
             return res.status(500).json({ error: "internal server error" });
         }
     });
 
-    // PUT /accounts/:id
-    router.put("/:id", async (req, res) => {
+    // PUT /accounts/:id  (admin only)
+    router.put("/:id", auth, requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const { username } = req.body;
@@ -210,7 +303,7 @@ function accountsRouter(models) {
             account.username = username.trim();
             await account.save();
 
-            return res.json(account);
+            return res.json(accountToSafeJson(account));
         } catch (err) {
             if (err?.name === "SequelizeUniqueConstraintError") {
                 return res.status(409).json({ error: "username already exists" });
@@ -223,8 +316,8 @@ function accountsRouter(models) {
         }
     });
 
-    // DELETE /accounts/:id
-    router.delete("/:id", async (req, res) => {
+    // DELETE /accounts/:id  (admin only)
+    router.delete("/:id", auth, requireAdmin, async (req, res) => {
         try {
             const { id } = req.params;
 

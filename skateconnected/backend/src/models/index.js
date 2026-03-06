@@ -3,6 +3,7 @@ const { definePark } = require("./Park");
 const { defineConversation } = require("./Conversation");
 const { defineConversationParticipant } = require("./ConversationParticipant");
 const { defineMessage } = require("./Message");
+const { definePendingRegistration } = require("./PendingRegistration");
 
 function initModels(sequelize) {
 
@@ -11,6 +12,7 @@ function initModels(sequelize) {
     const Message = defineMessage(sequelize);
     const Account = defineAccount(sequelize);
     const Park = definePark(sequelize);
+    const PendingRegistration = definePendingRegistration(sequelize);
 
     // associations
     // i.e. many users can be associated with one skatepark
@@ -54,10 +56,11 @@ function initModels(sequelize) {
     return {
         sequelize,
         Account,
-            Park,
-            Conversation,
-            ConversationParticipant,
-            Message
+        Park,
+        Conversation,
+        ConversationParticipant,
+        Message,
+        PendingRegistration,
     };
 
 
