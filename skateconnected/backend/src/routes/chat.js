@@ -2,8 +2,6 @@ const express = require("express");
 const { validate: isUuid } = require("uuid");
 const { Op } = require("sequelize");
 
-
-
 function messageToDto(m) {
     return {
         id: m.id,
@@ -21,13 +19,11 @@ function chatRouter(models) {
     const { requireAuth } = require("../middleware/requireAuth");
     router.use(requireAuth(models));
 
-    // 1) Resolve existing chats for logged-in user
-    // GET /chat/conversations
+    // GET /chat/conversations — all conversations for logged-in user
     router.get("/conversations", async (req, res) => {
         try {
             const me = req.user.id;
 
-            // All conversation IDs I'm part of
             const myLinks = await ConversationParticipant.findAll({
                 where: { accountId: me },
                 attributes: ["conversationId"],
@@ -36,7 +32,14 @@ function chatRouter(models) {
 
             if (conversationIds.length === 0) return res.json([]);
 
-            // Get last message per conversation (simple, reliable approach)
+            // Get conversation metadata (status, inviterId)
+            const conversations = await Conversation.findAll({
+                where: { id: { [Op.in]: conversationIds } },
+                attributes: ["id", "status", "inviterId"],
+            });
+            const convById = new Map(conversations.map((c) => [c.id, c]));
+
+            // Get last message per conversation
             const lastMessages = await Promise.all(
                 conversationIds.map(async (cid) => {
                     const msg = await Message.findOne({
@@ -47,7 +50,7 @@ function chatRouter(models) {
                 })
             );
 
-            // Get the "other user" (DM = 2 participants). If later group chats: adapt.
+            // Get the other participant per conversation
             const otherParticipants = await ConversationParticipant.findAll({
                 where: {
                     conversationId: { [Op.in]: conversationIds },
@@ -70,11 +73,14 @@ function chatRouter(models) {
                     const otherId = otherByConversation.get(cid) || null;
                     const other = otherId ? otherById.get(otherId) : null;
                     const lm = lastMessages.find((x) => x.cid === cid)?.msg || null;
+                    const conv = convById.get(cid);
 
                     return {
                         conversationId: cid,
                         otherUser: other ? { id: other.id, username: other.username } : null,
                         lastMessage: lm ? messageToDto(lm) : null,
+                        status: conv?.status || "accepted",
+                        inviterId: conv?.inviterId || null,
                     };
                 })
                 .sort((a, b) => {
@@ -90,8 +96,8 @@ function chatRouter(models) {
         }
     });
 
-    // 2) Create-or-find a DM
     // POST /chat/conversations  body: { otherUserId }
+    // Creates or finds an existing DM. New conversations start as "pending".
     router.post("/conversations", async (req, res) => {
         const me = req.user.id;
         const { otherUserId } = req.body || {};
@@ -107,7 +113,7 @@ function chatRouter(models) {
             const other = await Account.findByPk(otherUserId);
             if (!other) return res.status(404).json({ error: "other user not found" });
 
-            // Find existing DM by checking any conversation with exactly these 2 participants
+            // Find existing conversation between these two users
             const myLinks = await ConversationParticipant.findAll({
                 where: { accountId: me },
                 attributes: ["conversationId"],
@@ -119,13 +125,23 @@ function chatRouter(models) {
                     where: { conversationId: { [Op.in]: conversationIds }, accountId: otherUserId },
                 });
                 if (existing) {
-                    return res.status(200).json({ conversationId: existing.conversationId });
+                    const conv = await Conversation.findByPk(existing.conversationId, {
+                        attributes: ["id", "status", "inviterId"],
+                    });
+                    return res.status(200).json({
+                        conversationId: existing.conversationId,
+                        status: conv?.status || "accepted",
+                        inviterId: conv?.inviterId || null,
+                    });
                 }
             }
 
-            // Otherwise create a new conversation + two participant rows transactionally
+            // Create new conversation — pending until the recipient accepts
             const created = await sequelize.transaction(async (t) => {
-                const convo = await Conversation.create({}, { transaction: t });
+                const convo = await Conversation.create(
+                    { status: "pending", inviterId: me },
+                    { transaction: t }
+                );
                 await ConversationParticipant.bulkCreate(
                     [
                         { conversationId: convo.id, accountId: me },
@@ -136,14 +152,78 @@ function chatRouter(models) {
                 return convo;
             });
 
-            return res.status(201).json({ conversationId: created.id });
+            return res.status(201).json({
+                conversationId: created.id,
+                status: created.status,
+                inviterId: created.inviterId,
+            });
         } catch (err) {
             console.error("POST /chat/conversations failed:", err);
             return res.status(500).json({ error: "internal server error" });
         }
     });
 
-    // 3) Load messages in a conversation
+    // POST /chat/conversations/:id/accept — recipient accepts a pending invite
+    router.post("/conversations/:id/accept", async (req, res) => {
+        const me = req.user.id;
+        const { id } = req.params;
+
+        if (!isUuid(id)) return res.status(400).json({ error: "invalid conversation id (uuid)" });
+
+        try {
+            const link = await ConversationParticipant.findOne({
+                where: { conversationId: id, accountId: me },
+            });
+            if (!link) return res.status(403).json({ error: "not a participant in this conversation" });
+
+            const convo = await Conversation.findByPk(id);
+            if (!convo) return res.status(404).json({ error: "conversation not found" });
+
+            if (convo.inviterId === me) {
+                return res.status(400).json({ error: "you cannot accept your own invite" });
+            }
+            if (convo.status !== "pending") {
+                return res.status(400).json({ error: "conversation is not pending" });
+            }
+
+            convo.status = "accepted";
+            await convo.save();
+
+            return res.json({ success: true });
+        } catch (err) {
+            console.error("POST /chat/conversations/:id/accept failed:", err);
+            return res.status(500).json({ error: "internal server error" });
+        }
+    });
+
+    // DELETE /chat/conversations/:id/decline — recipient declines a pending invite
+    router.delete("/conversations/:id/decline", async (req, res) => {
+        const me = req.user.id;
+        const { id } = req.params;
+
+        if (!isUuid(id)) return res.status(400).json({ error: "invalid conversation id (uuid)" });
+
+        try {
+            const link = await ConversationParticipant.findOne({
+                where: { conversationId: id, accountId: me },
+            });
+            if (!link) return res.status(403).json({ error: "not a participant in this conversation" });
+
+            const convo = await Conversation.findByPk(id);
+            if (!convo) return res.status(404).json({ error: "conversation not found" });
+
+            if (convo.inviterId === me) {
+                return res.status(400).json({ error: "you cannot decline your own invite" });
+            }
+
+            await convo.destroy();
+            return res.status(204).send();
+        } catch (err) {
+            console.error("DELETE /chat/conversations/:id/decline failed:", err);
+            return res.status(500).json({ error: "internal server error" });
+        }
+    });
+
     // GET /chat/conversations/:id/messages
     router.get("/conversations/:id/messages", async (req, res) => {
         const me = req.user.id;
@@ -152,7 +232,6 @@ function chatRouter(models) {
         if (!isUuid(id)) return res.status(400).json({ error: "invalid conversation id (uuid)" });
 
         try {
-            // must be a participant
             const link = await ConversationParticipant.findOne({
                 where: { conversationId: id, accountId: me },
             });
@@ -171,7 +250,6 @@ function chatRouter(models) {
         }
     });
 
-    // 4) Send message (persist)
     // POST /chat/conversations/:id/messages  body: { body }
     router.post("/conversations/:id/messages", async (req, res) => {
         const me = req.user.id;
@@ -188,6 +266,27 @@ function chatRouter(models) {
                 where: { conversationId: id, accountId: me },
             });
             if (!link) return res.status(403).json({ error: "not a participant in this conversation" });
+
+            const convo = await Conversation.findByPk(id);
+            if (!convo) return res.status(404).json({ error: "conversation not found" });
+
+            if (convo.status === "pending") {
+                if (me !== convo.inviterId) {
+                    // Recipient must accept before they can reply
+                    return res.status(403).json({
+                        error: "You must accept the chat invite before sending messages",
+                        code: "INVITE_PENDING",
+                    });
+                }
+                // Inviter can only send one message (the initial invite message)
+                const existingMsg = await Message.findOne({ where: { conversationId: id } });
+                if (existingMsg) {
+                    return res.status(403).json({
+                        error: "Waiting for the other user to accept your chat invite",
+                        code: "WAITING_ACCEPTANCE",
+                    });
+                }
+            }
 
             const msg = await Message.create({
                 conversationId: id,

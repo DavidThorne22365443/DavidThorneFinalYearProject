@@ -16,7 +16,7 @@ function accountToSafeJson(account) {
 
 function accountsRouter(models) {
     const router = express.Router();
-    const { Account, PendingRegistration } = models;
+    const { Account, PendingRegistration, ParkMember } = models;
 
     // -----------------------
     // AUTH
@@ -216,6 +216,20 @@ function accountsRouter(models) {
             return res.json(accountToSafeJson(req.user));
         } catch (err) {
             console.error("GET /accounts/me failed:", err);
+            return res.status(500).json({ error: "internal server error" });
+        }
+    });
+
+    // GET /accounts/me/parks — park IDs the logged-in user is a member of
+    router.get("/me/parks", auth, async (req, res) => {
+        try {
+            const memberships = await ParkMember.findAll({
+                where: { accountId: req.user.id },
+                attributes: ["parkId"],
+            });
+            return res.json(memberships.map((m) => m.parkId));
+        } catch (err) {
+            console.error("GET /accounts/me/parks failed:", err);
             return res.status(500).json({ error: "internal server error" });
         }
     });

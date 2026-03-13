@@ -1,5 +1,6 @@
 const { defineAccount } = require("./Account");
 const { definePark } = require("./Park");
+const { defineParkMember } = require("./ParkMember");
 const { defineConversation } = require("./Conversation");
 const { defineConversationParticipant } = require("./ConversationParticipant");
 const { defineMessage } = require("./Message");
@@ -12,12 +13,26 @@ function initModels(sequelize) {
     const Message = defineMessage(sequelize);
     const Account = defineAccount(sequelize);
     const Park = definePark(sequelize);
+    const ParkMember = defineParkMember(sequelize);
     const PendingRegistration = definePendingRegistration(sequelize);
 
-    // associations
-    // i.e. many users can be associated with one skatepark
-    Park.hasMany(Account, { foreignKey: "parkId" });
-    Account.belongsTo(Park, { foreignKey: "parkId" });
+    // Park <-> Account many-to-many via ParkMember (users can join up to 4 parks)
+    Park.belongsToMany(Account, {
+        through: ParkMember,
+        foreignKey: "parkId",
+        otherKey: "accountId",
+        as: "members",
+    });
+    Account.belongsToMany(Park, {
+        through: ParkMember,
+        foreignKey: "accountId",
+        otherKey: "parkId",
+        as: "parks",
+    });
+    ParkMember.belongsTo(Park, { foreignKey: "parkId", as: "park" });
+    ParkMember.belongsTo(Account, { foreignKey: "accountId", as: "account" });
+    Park.hasMany(ParkMember, { foreignKey: "parkId", as: "memberships" });
+    Account.hasMany(ParkMember, { foreignKey: "accountId", as: "parkMemberships" });
 
     // Conversations <-> Accounts (many-to-many) via ConversationParticipant
     Conversation.belongsToMany(Account, {
@@ -34,7 +49,7 @@ function initModels(sequelize) {
         as: "conversations",
     });
 
-// Conversation -> Messages (one-to-many)
+    // Conversation -> Messages (one-to-many)
     Conversation.hasMany(Message, {
         foreignKey: "conversationId",
         as: "messages",
@@ -46,25 +61,22 @@ function initModels(sequelize) {
         as: "conversation",
     });
 
-// Message sender relation (optional but useful)
+    // Message sender relation
     Message.belongsTo(Account, {
         foreignKey: "senderId",
         as: "sender",
     });
 
-
     return {
         sequelize,
         Account,
         Park,
+        ParkMember,
         Conversation,
         ConversationParticipant,
         Message,
         PendingRegistration,
     };
-
-
-
 }
 
 module.exports = { initModels };

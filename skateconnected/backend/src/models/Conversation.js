@@ -9,6 +9,15 @@ function defineConversation(sequelize) {
                 defaultValue: DataTypes.UUIDV4,
                 primaryKey: true,
             },
+            status: {
+                type: DataTypes.ENUM("pending", "accepted"),
+                allowNull: false,
+                defaultValue: "pending",
+            },
+            inviterId: {
+                type: DataTypes.UUID,
+                allowNull: true,
+            },
         },
         {
             tableName: "conversations",

@@ -7,17 +7,10 @@ type ConversationRow = {
     conversationId: string;
     otherUser: { id: string; username: string } | null;
     lastMessage: { id: string; body: string; createdAt: string } | null;
+    status: "pending" | "accepted";
+    inviterId: string | null;
 };
 
-
-//reads the logged in user from localStorage
-function getAccountId(): string | null {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("accountId");
-}
-
-
-//gets when the a message was sent
 function formatTime(createdAt: string) {
     const d = new Date(createdAt);
     const now = new Date();
@@ -32,42 +25,48 @@ function formatTime(createdAt: string) {
 export default function ChatListPage() {
     const [rows, setRows] = useState<ConversationRow[]>([]);
     const [error, setError] = useState<string | null>(null);
-    const [accountId, setAccountId] = useState<string | null>(null);
+    const [myId, setMyId] = useState<string | null>(null);
+    const [decliningId, setDecliningId] = useState<string | null>(null);
 
     useEffect(() => {
-        const id = getAccountId();
-        setAccountId(id);
+        fetch("/api/account", { credentials: "include" })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => setMyId(data?.id ?? null))
+            .catch(() => {});
     }, []);
 
     async function load() {
         setError(null);
-        const id = getAccountId();
-        if (!id) {
-            setError("No accountId in localStorage. Set it below.");
-            setRows([]);
-            return;
-        }
-
-        const r = await fetch("/api/chat/conversations", {
-            headers: { "x-account-id": id },
-            cache: "no-store",
-        });
+        const r = await fetch("/api/chat/conversations", { cache: "no-store" });
         const data = await r.json().catch(() => ({}));
-
         if (!r.ok) {
             setError(data?.error || "Failed to load conversations");
             setRows([]);
             return;
         }
         setRows(Array.isArray(data) ? data : []);
-        //updates conversation list
     }
 
-
-    //ensures that whenever accountID changes the page reloads.
     useEffect(() => {
         load();
-    }, [accountId]);
+    }, []);
+
+    async function declineInvite(conversationId: string) {
+        setDecliningId(conversationId);
+        try {
+            await fetch(`/api/chat/conversations/${conversationId}/decline`, { method: "DELETE" });
+            setRows((prev) => prev.filter((r) => r.conversationId !== conversationId));
+        } finally {
+            setDecliningId(null);
+        }
+    }
+
+    const pendingInvites = rows.filter(
+        (r) => r.status === "pending" && r.inviterId !== myId
+    );
+    const otherConversations = rows.filter(
+        (r) => r.status === "accepted" || r.inviterId === myId
+    );
 
     return (
         <div className="flex h-screen w-screen min-h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
@@ -91,43 +90,92 @@ export default function ChatListPage() {
                 )}
 
                 <div className="flex-1 min-h-0 overflow-auto">
-                    {rows.length === 0 && !error && (
+                    {/* Pending invites section */}
+                    {pendingInvites.length > 0 && (
+                        <div>
+                            <p className="px-4 pt-3 pb-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                Chat Invites
+                            </p>
+                            {pendingInvites.map((c) => (
+                                <div
+                                    key={c.conversationId}
+                                    className="flex items-center gap-3 px-4 py-3 border-b border-yellow-100 dark:border-yellow-900/30 bg-yellow-50 dark:bg-yellow-900/10"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-yellow-200 dark:bg-yellow-800 flex items-center justify-center text-yellow-700 dark:text-yellow-200 font-semibold shrink-0">
+                                        {(c.otherUser?.username ?? "?").charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                                            {c.otherUser?.username ?? "Unknown"}
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                            {c.lastMessage?.body ?? "Wants to chat with you"}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-1 shrink-0">
+                                        <Link
+                                            href={`/chat/${c.conversationId}`}
+                                            className="text-xs px-2.5 py-1 rounded-lg bg-zinc-900 text-white hover:bg-zinc-700 transition-colors"
+                                        >
+                                            View
+                                        </Link>
+                                        <button
+                                            onClick={() => declineInvite(c.conversationId)}
+                                            disabled={decliningId === c.conversationId}
+                                            className="text-xs px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+                                        >
+                                            Decline
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Regular conversations */}
+                    {otherConversations.length === 0 && pendingInvites.length === 0 && !error && (
                         <div className="p-6 text-center text-gray-500 dark:text-gray-400 text-sm">
                             No conversations yet.
                         </div>
                     )}
-                    {rows.map((c) => (
-                        <Link
-                            key={c.conversationId}
-                            href={`/chat/${c.conversationId}`}
-                            className="flex gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700/50 transition-colors"
-                        >
-                            <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 font-semibold shrink-0">
-                                {(c.otherUser?.username ?? "?").charAt(0).toUpperCase()}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-baseline justify-between gap-2">
-                                    <span className="font-medium text-gray-900 dark:text-white truncate">
-                                        {c.otherUser?.username ?? "Unknown"}
-                                    </span>
-                                    {c.lastMessage?.createdAt && (
-                                        <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
-                                            {formatTime(c.lastMessage.createdAt)}
-                                        </span>
-                                    )}
-                                </div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-0.5">
-                                    {c.lastMessage ? c.lastMessage.body : "No messages yet"}
-                                </p>
-                            </div>
-                        </Link>
-                    ))}
-                </div>
 
-                <div className="p-3 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50">
-                    <span className="font-medium">Dev:</span> Set{" "}
-                    <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">localStorage.accountId</code> (e.g. in
-                    console).
+                    {otherConversations.length > 0 && pendingInvites.length > 0 && (
+                        <p className="px-4 pt-3 pb-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                            Messages
+                        </p>
+                    )}
+
+                    {otherConversations.map((c) => {
+                        const isPendingSent = c.status === "pending" && c.inviterId === myId;
+                        return (
+                            <Link
+                                key={c.conversationId}
+                                href={`/chat/${c.conversationId}`}
+                                className="flex gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700/50 transition-colors"
+                            >
+                                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 font-semibold shrink-0">
+                                    {(c.otherUser?.username ?? "?").charAt(0).toUpperCase()}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-baseline justify-between gap-2">
+                                        <span className="font-medium text-gray-900 dark:text-white truncate">
+                                            {c.otherUser?.username ?? "Unknown"}
+                                        </span>
+                                        {c.lastMessage?.createdAt && (
+                                            <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                                                {formatTime(c.lastMessage.createdAt)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                                        {isPendingSent
+                                            ? "Waiting for reply…"
+                                            : (c.lastMessage ? c.lastMessage.body : "No messages yet")}
+                                    </p>
+                                </div>
+                            </Link>
+                        );
+                    })}
                 </div>
             </aside>
 

@@ -32,6 +32,14 @@ function definePark(sequelize) {
                 type: DataTypes.DECIMAL(10, 7),
                 allowNull: true,
             },
+            address: {
+                type: DataTypes.STRING(100),
+                allowNull: true,
+            },
+            openingHours: {
+                type: DataTypes.STRING(200),
+                allowNull: true,
+            },
         },
         {
             tableName: "parks",
