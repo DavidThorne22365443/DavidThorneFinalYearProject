@@ -11,6 +11,7 @@ export default function RegisterPage() {
     const [showLastName, setShowLastName] = useState(true);
     const [favouriteTrick, setFavouriteTrick] = useState("");
     const [city, setCity] = useState("");
+    const [skillLevel, setSkillLevel] = useState("");
     const [email, setEmail] = useState("");
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -37,6 +38,7 @@ export default function RegisterPage() {
         confirmPassword.length >= 6 &&
         passwordsMatch &&
         city &&
+        skillLevel &&
         !loading;
 
     async function handleSubmit(e: React.FormEvent) {
@@ -67,6 +69,7 @@ export default function RegisterPage() {
                     showLastName,
                     favouriteTrick: favouriteTrick.trim() || undefined,
                     city: city.trim() || undefined,
+                    skillLevel: skillLevel || undefined,
                 }),
             });
 
@@ -79,8 +82,9 @@ export default function RegisterPage() {
                 return;
             }
 
-            setVerifyEmail(data?.email ?? email.trim().toLowerCase());
-            setStep("verify");
+            // TEMPORARY: email verification disabled for testing
+            // RESTORE: replace the router.push line with setVerifyEmail / setStep("verify")
+            router.push("/login?registered=1");
         } catch {
             setError("Could not reach the server. Is the app running?");
         } finally {
@@ -263,6 +267,25 @@ export default function RegisterPage() {
                             ))}
                         </select>
                         <p className="text-xs text-zinc-500 mt-1">The map will focus on this city when you log in.</p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm text-zinc-300 mb-1.5" htmlFor="skillLevel">
+                            Skill level <span className="text-red-400">*</span>
+                        </label>
+                        <select
+                            id="skillLevel"
+                            value={skillLevel}
+                            onChange={(e) => setSkillLevel(e.target.value)}
+                            required
+                            className="w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-2.5 outline-none focus:ring-2 focus:ring-zinc-600 text-zinc-100"
+                        >
+                            <option value="">Select your level</option>
+                            <option value="beginner">Beginner — just started skating in the last month or two</option>
+                            <option value="intermediate">Intermediate — been skating for a little while</option>
+                            <option value="advanced">Advanced — been skating for years</option>
+                        </select>
+                        <p className="text-xs text-zinc-500 mt-1">This will be visible to others when you associate with a skatepark.</p>
                     </div>
 
                     <div>

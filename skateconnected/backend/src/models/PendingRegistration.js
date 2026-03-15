@@ -34,6 +34,7 @@ function definePendingRegistration(sequelize) {
             showLastName: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
             favouriteTrick: { type: DataTypes.STRING(80), allowNull: true },
             city: { type: DataTypes.STRING(50), allowNull: true },
+            skillLevel: { type: DataTypes.STRING(20), allowNull: true },
         },
         {
             tableName: "pending_registrations",

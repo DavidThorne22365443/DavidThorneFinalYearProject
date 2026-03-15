@@ -75,6 +75,11 @@ function defineAccount(sequelize) {
                 allowNull: true,
             },
 
+            skillLevel: {
+                type: DataTypes.ENUM("beginner", "intermediate", "advanced"),
+                allowNull: true,
+            },
+
             isAdmin: {
                 type: DataTypes.BOOLEAN,
                 allowNull: false,

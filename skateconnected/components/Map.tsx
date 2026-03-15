@@ -17,6 +17,7 @@ type Account = {
     username: string;
     isAdmin: boolean;
     city?: string;
+    showLastName?: boolean;
 };
 
 type Park = {
@@ -36,6 +37,13 @@ type Member = {
     firstName: string | null;
     lastName: string | null;
     showLastName: boolean;
+    skillLevel: 'beginner' | 'intermediate' | 'advanced' | null;
+};
+
+const SKILL_BADGE: Record<string, { label: string; className: string }> = {
+    beginner:     { label: 'Beginner',     className: 'bg-emerald-100 text-emerald-700' },
+    intermediate: { label: 'Intermediate', className: 'bg-blue-100 text-blue-700' },
+    advanced:     { label: 'Advanced',     className: 'bg-purple-100 text-purple-700' },
 };
 
 function memberDisplayName(m: Member): string {
@@ -69,6 +77,7 @@ const Map: React.FC = () => {
     // Associate warning modal
     const [showAssociateWarning, setShowAssociateWarning] = useState(false);
     const [isAssociating, setIsAssociating] = useState(false);
+    const [associateShowLastName, setAssociateShowLastName] = useState(true);
 
     // Admin add park panel
     const [adminClickCoords, setAdminClickCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -226,6 +235,15 @@ const Map: React.FC = () => {
         if (!selectedPark) return;
         setIsAssociating(true);
         try {
+            // Save showLastName preference if it changed
+            if (account && associateShowLastName !== account.showLastName) {
+                await fetch('/api/account', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ showLastName: associateShowLastName }),
+                });
+                setAccount((prev) => prev ? { ...prev, showLastName: associateShowLastName } : prev);
+            }
             const r = await fetch(`/api/park/${selectedPark.id}/associate`, { method: 'POST' });
             const data = await r.json().catch(() => ({}));
             if (r.ok) {
@@ -452,10 +470,17 @@ const Map: React.FC = () => {
                                             <div className="w-7 h-7 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-semibold text-zinc-600 shrink-0">
                                                 {(m.username).charAt(0).toUpperCase()}
                                             </div>
-                                            <span className="text-sm text-zinc-800 truncate">
-                                                {memberDisplayName(m)}
-                                                {isMe && <span className="text-zinc-400 ml-1">(you)</span>}
-                                            </span>
+                                            <div className="min-w-0">
+                                                <span className="text-sm text-zinc-800 truncate block">
+                                                    {memberDisplayName(m)}
+                                                    {isMe && <span className="text-zinc-400 ml-1">(you)</span>}
+                                                </span>
+                                                {m.skillLevel && SKILL_BADGE[m.skillLevel] && (
+                                                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${SKILL_BADGE[m.skillLevel].className}`}>
+                                                        {SKILL_BADGE[m.skillLevel].label}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                         {!isMe && account && (
                                             <button
@@ -484,7 +509,10 @@ const Map: React.FC = () => {
                                 </button>
                             ) : (
                                 <button
-                                    onClick={() => setShowAssociateWarning(true)}
+                                    onClick={() => {
+                                    setAssociateShowLastName(account?.showLastName ?? true);
+                                    setShowAssociateWarning(true);
+                                }}
                                     disabled={isAssociating}
                                     className="w-full py-2 rounded-xl text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-700 transition-colors disabled:opacity-50"
                                 >
@@ -583,10 +611,19 @@ const Map: React.FC = () => {
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl p-6 max-w-sm mx-4 shadow-2xl">
                         <h3 className="font-bold text-zinc-900 text-base mb-2">Associate with {selectedPark.name}?</h3>
-                        <p className="text-sm text-zinc-600 mb-4">
+                        <p className="text-sm text-zinc-600 mb-3">
                             Your name will be <strong>visible to all SkateConnected users</strong> as a member of this park.
                             You can be associated with up to 4 skateparks.
                         </p>
+                        <label className="flex items-center gap-2 mb-4 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={associateShowLastName}
+                                onChange={(e) => setAssociateShowLastName(e.target.checked)}
+                                className="rounded border-zinc-400 bg-zinc-100 text-zinc-900 focus:ring-zinc-500"
+                            />
+                            <span className="text-sm text-zinc-700">Show my full name to other users</span>
+                        </label>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => setShowAssociateWarning(false)}
