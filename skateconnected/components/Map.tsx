@@ -31,6 +31,14 @@ type Park = {
     longitude: number | null;
 };
 
+type Skatespot = {
+    id: string;
+    name: string;
+    nearby: string | null;
+    latitude: number;
+    longitude: number;
+};
+
 type Member = {
     id: string;
     username: string;
@@ -57,6 +65,7 @@ const Map: React.FC = () => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<mapboxgl.Map | null>(null);
     const markersRef = useRef<{ park: Park; marker: mapboxgl.Marker }[]>([]);
+    const spotMarkersRef = useRef<{ spot: Skatespot; marker: mapboxgl.Marker }[]>([]);
     const accountRef = useRef<Account | null>(null);
 
     const [mapReady, setMapReady] = useState(false);
@@ -67,6 +76,16 @@ const Map: React.FC = () => {
 
     // Parks
     const [parks, setParks] = useState<Park[]>([]);
+
+    // Skatespots
+    const [skatespots, setSkatespots] = useState<Skatespot[]>([]);
+    const [selectedSpot, setSelectedSpot] = useState<Skatespot | null>(null);
+
+    // Add skatespot panel (non-admin user clicks map)
+    const [addSpotCoords, setAddSpotCoords] = useState<{ lat: number; lng: number } | null>(null);
+    const [addSpotForm, setAddSpotForm] = useState({ name: '', nearby: '' });
+    const [addSpotLoading, setAddSpotLoading] = useState(false);
+    const [addSpotError, setAddSpotError] = useState<string | null>(null);
 
     // Park detail panel
     const [selectedPark, setSelectedPark] = useState<Park | null>(null);
@@ -89,10 +108,21 @@ const Map: React.FC = () => {
     const [messagingUser, setMessagingUser] = useState<Member | null>(null);
     const [messageLoading, setMessageLoading] = useState(false);
 
+    // Brand dropdown (logout)
+    const [brandDropdownOpen, setBrandDropdownOpen] = useState(false);
+
     // Keep accountRef in sync for use in map event handlers (avoids stale closures)
     useEffect(() => {
         accountRef.current = account;
     }, [account]);
+
+    // Close brand dropdown when clicking outside
+    useEffect(() => {
+        if (!brandDropdownOpen) return;
+        const handler = () => setBrandDropdownOpen(false);
+        document.addEventListener('click', handler);
+        return () => document.removeEventListener('click', handler);
+    }, [brandDropdownOpen]);
 
     // Load current user
     useEffect(() => {
@@ -113,6 +143,14 @@ const Map: React.FC = () => {
             .catch(() => {});
     }, []);
 
+    // Load approved skatespots
+    useEffect(() => {
+        fetch('/api/skatespot', { cache: 'no-store' })
+            .then((r) => r.ok ? r.json() : [])
+            .then((data: Skatespot[]) => setSkatespots(Array.isArray(data) ? data : []))
+            .catch(() => {});
+    }, []);
+
     // Load user's current memberships
     useEffect(() => {
         if (!account) return;
@@ -122,13 +160,14 @@ const Map: React.FC = () => {
             .catch(() => {});
     }, [account]);
 
-    const userCityCenter = account?.city ? getCityCenter(account.city) : null;
-
-    // Initialise the map
+    // Initialise the map — depends only on accountLoaded so it runs exactly once.
+    // userCityCenter is computed inside the effect from accountRef (always current)
+    // to avoid a new array reference on every render re-triggering cleanup.
     useEffect(() => {
         if (!accountLoaded || !mapContainerRef.current || mapRef.current) return;
 
-        const center = userCityCenter ?? DEFAULT_CENTER;
+        const cityCenter = accountRef.current?.city ? getCityCenter(accountRef.current.city) : null;
+        const center = cityCenter ?? DEFAULT_CENTER;
         const limerickBounds: [number, number, number, number] = [-9.37, 52.27, -8.15, 52.76];
 
         const mapInstance = new mapboxgl.Map({
@@ -142,8 +181,8 @@ const Map: React.FC = () => {
 
         mapInstance.on('load', () => {
             const options: mapboxgl.FitBoundsOptions = { padding: 20, animate: false };
-            if (userCityCenter) {
-                const [lng, lat] = userCityCenter;
+            if (cityCenter) {
+                const [lng, lat] = cityCenter;
                 const padding = 0.05;
                 mapInstance.fitBounds(
                     [lng - padding, lat - padding, lng + padding, lat + padding],
@@ -155,23 +194,35 @@ const Map: React.FC = () => {
             setMapReady(true);
         });
 
-        // Admin: click on empty map to open "Add Park" panel
         mapInstance.on('click', (e) => {
-            if (accountRef.current?.isAdmin) {
+            const acc = accountRef.current;
+            if (acc?.isAdmin) {
+                // Admin: open add park panel
                 setAdminClickCoords({ lat: e.lngLat.lat, lng: e.lngLat.lng });
                 setSelectedPark(null);
+                setSelectedSpot(null);
+                setAddSpotCoords(null);
                 setAddParkForm({ name: '', address: '', openingHours: '' });
                 setAddParkError(null);
+            } else if (acc) {
+                // Logged-in non-admin: open add skatespot panel
+                setAddSpotCoords({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+                setSelectedPark(null);
+                setSelectedSpot(null);
+                setAdminClickCoords(null);
+                setAddSpotForm({ name: '', nearby: '' });
+                setAddSpotError(null);
             }
         });
 
         return () => {
+            setMapReady(false);
             if (mapInstance) {
                 mapInstance.remove();
                 mapRef.current = null;
             }
         };
-    }, [accountLoaded, userCityCenter]);
+    }, [accountLoaded]);
 
     // Load park members when a park is selected
     const loadParkMembers = useCallback(async (parkId: string) => {
@@ -188,12 +239,11 @@ const Map: React.FC = () => {
         }
     }, []);
 
-    // Add/update markers when parks change and map is ready
+    // Add/update park markers when parks change and map is ready
     useEffect(() => {
         const map = mapRef.current;
         if (!map || !mapReady) return;
 
-        // Remove old markers
         markersRef.current.forEach(({ marker }) => marker.remove());
         markersRef.current = [];
 
@@ -223,13 +273,56 @@ const Map: React.FC = () => {
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
                 setSelectedPark(park);
+                setSelectedSpot(null);
                 setAdminClickCoords(null);
+                setAddSpotCoords(null);
                 loadParkMembers(park.id);
             });
 
             markersRef.current.push({ park, marker });
         });
     }, [parks, mapReady, loadParkMembers]);
+
+    // Add/update skatespot markers when skatespots change and map is ready
+    useEffect(() => {
+        const map = mapRef.current;
+        if (!map || !mapReady) return;
+
+        spotMarkersRef.current.forEach(({ marker }) => marker.remove());
+        spotMarkersRef.current = [];
+
+        skatespots.forEach((spot) => {
+            const el = document.createElement('div');
+            el.style.cssText = `
+                width: 32px; height: 32px;
+                background: #f97316;
+                border: 2.5px solid #fff;
+                border-radius: 50% 50% 50% 0;
+                transform: rotate(-45deg);
+                cursor: pointer;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                display: flex; align-items: center; justify-content: center;
+            `;
+            const inner = document.createElement('div');
+            inner.style.cssText = 'transform: rotate(45deg); font-size: 13px; line-height: 1;';
+            inner.textContent = '📍';
+            el.appendChild(inner);
+
+            const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom-left' })
+                .setLngLat([Number(spot.longitude), Number(spot.latitude)])
+                .addTo(map);
+
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setSelectedSpot(spot);
+                setSelectedPark(null);
+                setAdminClickCoords(null);
+                setAddSpotCoords(null);
+            });
+
+            spotMarkersRef.current.push({ spot, marker });
+        });
+    }, [skatespots, mapReady]);
 
     async function associateWithPark() {
         if (!selectedPark) return;
@@ -242,14 +335,13 @@ const Map: React.FC = () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ showLastName: associateShowLastName }),
                 });
-                setAccount((prev) => prev ? { ...prev, showLastName: associateShowLastName } : prev);
             }
             const r = await fetch(`/api/park/${selectedPark.id}/associate`, { method: 'POST' });
             const data = await r.json().catch(() => ({}));
             if (r.ok) {
-                setMyMemberships((prev) => [...prev, selectedPark.id]);
                 setShowAssociateWarning(false);
-                loadParkMembers(selectedPark.id);
+                // Reload so all markers and data are fresh
+                window.location.reload();
             } else {
                 alert(data?.error || 'Failed to associate with park');
                 setShowAssociateWarning(false);
@@ -324,6 +416,38 @@ const Map: React.FC = () => {
         }
     }
 
+    async function submitAddSpot(e: React.FormEvent) {
+        e.preventDefault();
+        if (!addSpotCoords || !addSpotForm.name.trim()) return;
+        setAddSpotLoading(true);
+        setAddSpotError(null);
+        try {
+            const r = await fetch('/api/skatespot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: addSpotForm.name,
+                    nearby: addSpotForm.nearby || null,
+                    latitude: addSpotCoords.lat,
+                    longitude: addSpotCoords.lng,
+                }),
+            });
+            const data = await r.json().catch(() => ({}));
+            if (r.ok) {
+                window.location.reload();
+            } else {
+                setAddSpotError(data?.error || 'Failed to submit skatespot');
+            }
+        } finally {
+            setAddSpotLoading(false);
+        }
+    }
+
+    async function handleLogout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/login';
+    }
+
     const isMyPark = selectedPark ? myMemberships.includes(selectedPark.id) : false;
 
     return (
@@ -335,9 +459,50 @@ const Map: React.FC = () => {
             {/* TOP-LEFT FLOATING NAVBAR */}
             <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
                 <div className="flex items-center gap-1 bg-white rounded-2xl shadow-lg px-4 py-2.5">
-                    <span className="font-bold text-zinc-900 text-sm mr-3 whitespace-nowrap">
-                        skateconnected.ie
-                    </span>
+                    {/* Brand name with logout dropdown */}
+                    <div className="relative mr-3">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setBrandDropdownOpen((o) => !o);
+                            }}
+                            className="font-bold text-zinc-900 text-sm whitespace-nowrap hover:text-zinc-600 transition-colors flex items-center gap-1"
+                        >
+                            skateconnected.ie
+                            <svg className="w-3 h-3 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        {brandDropdownOpen && (
+                            <div
+                                className="absolute left-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-zinc-100 py-1 min-w-[160px] z-20"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {account ? (
+                                    <>
+                                        <div className="px-3 py-2 text-xs text-zinc-400 border-b border-zinc-100">
+                                            Signed in as <span className="font-medium text-zinc-600">{account.username}</span>
+                                        </div>
+                                        <button
+                                            onClick={handleLogout}
+                                            className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                        >
+                                            Log out
+                                        </button>
+                                    </>
+                                ) : (
+                                    <Link
+                                        href="/login"
+                                        className="block px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors"
+                                        onClick={() => setBrandDropdownOpen(false)}
+                                    >
+                                        Log in
+                                    </Link>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="w-px h-4 bg-zinc-200 mr-1" />
                     <button
                         onClick={() => setSearchOpen(o => !o)}
@@ -360,15 +525,15 @@ const Map: React.FC = () => {
                             <Link href="/park-admin" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
                                 Skateparks
                             </Link>
+                            <Link href="/skatespot-admin" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                                Spots
+                            </Link>
                         </>
                     ) : (
                         <Link href="/skateparks" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
                             Skateparks
                         </Link>
                     )}
-                    <span className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-300 cursor-not-allowed whitespace-nowrap" title="Coming soon">
-                        Skatespots
-                    </span>
                 </div>
 
                 {searchOpen && (
@@ -394,10 +559,15 @@ const Map: React.FC = () => {
                     </div>
                 )}
 
-                {/* Admin hint */}
+                {/* Hints */}
                 {account?.isAdmin && (
                     <div className="bg-zinc-900/80 text-white text-xs rounded-xl px-3 py-1.5 backdrop-blur-sm">
                         Click anywhere on the map to add a skatepark
+                    </div>
+                )}
+                {account && !account.isAdmin && (
+                    <div className="bg-orange-500/90 text-white text-xs rounded-xl px-3 py-1.5 backdrop-blur-sm">
+                        Click anywhere on the map to suggest a skatespot
                     </div>
                 )}
             </div>
@@ -510,9 +680,9 @@ const Map: React.FC = () => {
                             ) : (
                                 <button
                                     onClick={() => {
-                                    setAssociateShowLastName(account?.showLastName ?? true);
-                                    setShowAssociateWarning(true);
-                                }}
+                                        setAssociateShowLastName(account?.showLastName ?? true);
+                                        setShowAssociateWarning(true);
+                                    }}
                                     disabled={isAssociating}
                                     className="w-full py-2 rounded-xl text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-700 transition-colors disabled:opacity-50"
                                 >
@@ -528,6 +698,43 @@ const Map: React.FC = () => {
                             </p>
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* SKATESPOT DETAIL PANEL */}
+            {selectedSpot && (
+                <div className="absolute top-4 right-4 z-10 w-80 bg-white rounded-2xl shadow-xl overflow-hidden">
+                    <div className="flex items-start justify-between p-4 border-b border-zinc-100">
+                        <div className="flex-1 min-w-0 pr-2">
+                            <div className="flex items-center gap-2 mb-0.5">
+                                <span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" />
+                                <span className="text-xs font-medium text-orange-600 uppercase tracking-wide">Skatespot</span>
+                            </div>
+                            <h2 className="font-bold text-zinc-900 text-base leading-tight">{selectedSpot.name}</h2>
+                        </div>
+                        <button
+                            onClick={() => setSelectedSpot(null)}
+                            className="text-zinc-400 hover:text-zinc-600 p-1 rounded-lg hover:bg-zinc-100 shrink-0"
+                            aria-label="Close"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div className="p-4">
+                        {selectedSpot.nearby ? (
+                            <div className="flex gap-2 text-sm text-zinc-700">
+                                <svg className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>{selectedSpot.nearby}</span>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-zinc-400 italic">No nearby description provided.</p>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -601,6 +808,72 @@ const Map: React.FC = () => {
                             className="w-full py-2 rounded-xl text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-700 transition-colors disabled:opacity-50"
                         >
                             {addParkLoading ? 'Saving…' : 'Add Skatepark'}
+                        </button>
+                    </form>
+                </div>
+            )}
+
+            {/* USER ADD SKATESPOT PANEL */}
+            {account && !account.isAdmin && addSpotCoords && (
+                <div className="absolute top-4 right-4 z-10 w-80 bg-white rounded-2xl shadow-xl overflow-hidden">
+                    <div className="flex items-center justify-between p-4 border-b border-zinc-100">
+                        <div>
+                            <h2 className="font-bold text-zinc-900 text-base">Suggest a Skatespot</h2>
+                            <p className="text-xs text-zinc-400 mt-0.5">An admin will review before it goes live</p>
+                        </div>
+                        <button
+                            onClick={() => setAddSpotCoords(null)}
+                            className="text-zinc-400 hover:text-zinc-600 p-1 rounded-lg hover:bg-zinc-100 shrink-0"
+                            aria-label="Close"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <form onSubmit={submitAddSpot} className="p-4 space-y-3">
+                        <div className="text-xs text-zinc-500 bg-zinc-50 rounded-lg px-3 py-2">
+                            📍 {addSpotCoords.lat.toFixed(5)}, {addSpotCoords.lng.toFixed(5)}
+                        </div>
+
+                        {addSpotError && (
+                            <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{addSpotError}</p>
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-medium text-zinc-700 mb-1">
+                                Spot name <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                maxLength={60}
+                                required
+                                value={addSpotForm.name}
+                                onChange={(e) => setAddSpotForm((f) => ({ ...f, name: e.target.value }))}
+                                placeholder="e.g. Tesco Car Park Ledge"
+                                className="w-full text-sm border border-zinc-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-medium text-zinc-700 mb-1">Nearby landmark</label>
+                            <input
+                                type="text"
+                                maxLength={200}
+                                value={addSpotForm.nearby}
+                                onChange={(e) => setAddSpotForm((f) => ({ ...f, nearby: e.target.value }))}
+                                placeholder="e.g. Around the corner from Tesco on the right"
+                                className="w-full text-sm border border-zinc-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={addSpotLoading || !addSpotForm.name.trim()}
+                            className="w-full py-2 rounded-xl text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 transition-colors disabled:opacity-50"
+                        >
+                            {addSpotLoading ? 'Submitting…' : 'Submit for Approval'}
                         </button>
                     </form>
                 </div>
