@@ -86,6 +86,15 @@ function defineAccount(sequelize) {
                 defaultValue: false,
             },
 
+            resetToken: {
+                type: DataTypes.STRING(128),
+                allowNull: true,
+            },
+            resetTokenExpiresAt: {
+                type: DataTypes.DATE,
+                allowNull: true,
+            },
+
         },
         {
             tableName: "accounts",

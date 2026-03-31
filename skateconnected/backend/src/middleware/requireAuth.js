@@ -22,6 +22,7 @@ function requireAuth(models) {
             return res.status(401).json({ error: "invalid or expired token" });
         }
     };
+
 }
 
 function requireAdmin(req, res, next) {

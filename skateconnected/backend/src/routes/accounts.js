@@ -1,7 +1,9 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { sendVerificationEmail } = require("../lib/sendVerificationEmail");
+const { sendPasswordResetEmail } = require("../lib/sendPasswordResetEmail");
 const { requireAuth, requireAdmin } = require("../middleware/requireAuth");
 
 function isUuid(v) {
@@ -10,7 +12,7 @@ function isUuid(v) {
 
 function accountToSafeJson(account) {
     const o = account.toJSON ? account.toJSON() : account;
-    const { passwordHash, verificationCode, verificationCodeExpiresAt, ...safe } = o;
+    const { passwordHash, verificationCode, verificationCodeExpiresAt, resetToken, resetTokenExpiresAt, ...safe } = o;
     return safe;
 }
 
@@ -234,6 +236,69 @@ function accountsRouter(models) {
         }
     });
 
+    // POST /accounts/forgot-password — generate reset token and email link
+    router.post("/forgot-password", async (req, res) => {
+        try {
+            const { email } = req.body || {};
+            if (!email || typeof email !== "string" || !email.trim()) {
+                return res.status(400).json({ error: "email is required" });
+            }
+
+            const emailTrimmed = email.trim().toLowerCase();
+            const account = await Account.findOne({ where: { email: emailTrimmed } });
+
+            // Always respond with success to avoid leaking whether an email exists
+            if (!account) {
+                return res.status(200).json({ message: "If that email is registered, you'll receive a reset link shortly." });
+            }
+
+            const token = crypto.randomBytes(32).toString("hex");
+            const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+            account.resetToken = token;
+            account.resetTokenExpiresAt = expiresAt;
+            await account.save();
+
+            const baseUrl = process.env.APP_URL || "http://localhost:3000";
+            const resetLink = `${baseUrl}/reset-password?token=${token}`;
+
+            await sendPasswordResetEmail(emailTrimmed, resetLink);
+
+            return res.status(200).json({ message: "If that email is registered, you'll receive a reset link shortly." });
+        } catch (err) {
+            console.error("POST /accounts/forgot-password failed:", err);
+            return res.status(500).json({ error: "internal server error" });
+        }
+    });
+
+    // POST /accounts/reset-password — validate token and update password
+    router.post("/reset-password", async (req, res) => {
+        try {
+            const { token, password } = req.body || {};
+            if (!token || typeof token !== "string" || !token.trim()) {
+                return res.status(400).json({ error: "reset token is required" });
+            }
+            if (!password || typeof password !== "string" || password.length < 6) {
+                return res.status(400).json({ error: "password must be at least 6 characters" });
+            }
+
+            const account = await Account.findOne({ where: { resetToken: token.trim() } });
+            if (!account || !account.resetTokenExpiresAt || account.resetTokenExpiresAt < new Date()) {
+                return res.status(400).json({ error: "This reset link is invalid or has expired." });
+            }
+
+            account.passwordHash = await bcrypt.hash(password, 10);
+            account.resetToken = null;
+            account.resetTokenExpiresAt = null;
+            await account.save();
+
+            return res.status(200).json({ message: "Password updated successfully. You can now log in." });
+        } catch (err) {
+            console.error("POST /accounts/reset-password failed:", err);
+            return res.status(500).json({ error: "internal server error" });
+        }
+    });
+
     const auth = requireAuth(models);
 
     // GET /accounts/me   (IMPORTANT: must be BEFORE "/:id")
@@ -242,6 +307,34 @@ function accountsRouter(models) {
             return res.json(accountToSafeJson(req.user));
         } catch (err) {
             console.error("GET /accounts/me failed:", err);
+            return res.status(500).json({ error: "internal server error" });
+        }
+    });
+
+    // PUT /accounts/me — update own profile fields
+    router.put("/me", auth, async (req, res) => {
+        try {
+            const allowed = ["showLastName", "firstName", "lastName", "favouriteTrick", "city", "skillLevel"];
+            const updates = {};
+
+            for (const field of allowed) {
+                if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+                    updates[field] = req.body[field];
+                }
+            }
+
+            if (Object.keys(updates).length === 0) {
+                return res.status(400).json({ error: "no updatable fields provided" });
+            }
+
+            if ("showLastName" in updates) {
+                updates.showLastName = Boolean(updates.showLastName);
+            }
+
+            await req.user.update(updates);
+            return res.json(accountToSafeJson(req.user));
+        } catch (err) {
+            console.error("PUT /accounts/me failed:", err);
             return res.status(500).json({ error: "internal server error" });
         }
     });

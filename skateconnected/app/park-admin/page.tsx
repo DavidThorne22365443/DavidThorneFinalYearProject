@@ -19,19 +19,27 @@ type Park = {
     longitude: string | number | null;
 };
 
-function ParkMiniMap({ park }: { park: Park }) {
+function ParkEditMap({
+    initialLat,
+    initialLng,
+    onMoved,
+}: {
+    initialLat: number;
+    initialLng: number;
+    onMoved: (lat: number, lng: number) => void;
+}) {
     const containerRef = useRef<HTMLDivElement>(null);
+    const onMovedRef = useRef(onMoved);
+    onMovedRef.current = onMoved;
 
     useEffect(() => {
         if (!containerRef.current) return;
-        const lat = Number(park.latitude);
-        const lng = Number(park.longitude);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        if (!Number.isFinite(initialLat) || !Number.isFinite(initialLng)) return;
 
         const map = new mapboxgl.Map({
             container: containerRef.current,
             style: 'mapbox://styles/mapbox/streets-v12',
-            center: [lng, lat],
+            center: [initialLng, initialLat],
             zoom: 15,
             interactive: true,
         });
@@ -46,22 +54,28 @@ function ParkMiniMap({ park }: { park: Park }) {
                 transform: rotate(-45deg);
                 box-shadow: 0 2px 8px rgba(0,0,0,0.35);
                 display: flex; align-items: center; justify-content: center;
+                cursor: grab;
             `;
             const inner = document.createElement('div');
             inner.style.cssText = 'transform: rotate(45deg); font-size: 13px; line-height: 1;';
             inner.textContent = '🛹';
             el.appendChild(inner);
-            new mapboxgl.Marker({ element: el, anchor: 'bottom-left' })
-                .setLngLat([lng, lat])
+
+            const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom-left', draggable: true })
+                .setLngLat([initialLng, initialLat])
                 .addTo(map);
+
+            marker.on('dragend', () => {
+                const { lat, lng } = marker.getLngLat();
+                onMovedRef.current(lat, lng);
+            });
         });
 
         return () => { map.remove(); };
-    }, [park.latitude, park.longitude]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    const lat = Number(park.latitude);
-    const lng = Number(park.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    if (!Number.isFinite(initialLat) || !Number.isFinite(initialLng)) {
         return (
             <div className="flex-1 flex items-center justify-center bg-zinc-100">
                 <p className="text-sm text-zinc-400">No coordinates set for this park.</p>
@@ -71,12 +85,6 @@ function ParkMiniMap({ park }: { park: Park }) {
 
     return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
 }
-
-const SKILL_BADGE: Record<string, string> = {
-    beginner: 'bg-emerald-100 text-emerald-700',
-    intermediate: 'bg-blue-100 text-blue-700',
-    advanced: 'bg-purple-100 text-purple-700',
-};
 
 export default function ParkAdminPage() {
     const router = useRouter();
@@ -94,6 +102,8 @@ export default function ParkAdminPage() {
     const [editName, setEditName] = useState('');
     const [editAddress, setEditAddress] = useState('');
     const [editHours, setEditHours] = useState('');
+    const [editLat, setEditLat] = useState<number | null>(null);
+    const [editLng, setEditLng] = useState<number | null>(null);
     const [editLoading, setEditLoading] = useState(false);
     const [editError, setEditError] = useState<string | null>(null);
 
@@ -148,6 +158,8 @@ export default function ParkAdminPage() {
         setEditName(selectedPark.name ?? '');
         setEditAddress(selectedPark.address ?? '');
         setEditHours(selectedPark.openingHours ?? '');
+        setEditLat(selectedPark.latitude != null ? Number(selectedPark.latitude) : null);
+        setEditLng(selectedPark.longitude != null ? Number(selectedPark.longitude) : null);
         setEditError(null);
     }, [selectedPark]);
 
@@ -157,14 +169,18 @@ export default function ParkAdminPage() {
         setEditLoading(true);
         setEditError(null);
         try {
+            const body: Record<string, unknown> = {
+                name: editName.trim(),
+                address: editAddress.trim() || null,
+                openingHours: editHours.trim() || null,
+            };
+            if (editLat != null) body.latitude = editLat;
+            if (editLng != null) body.longitude = editLng;
+
             const r = await fetch(`/api/park/${selectedPark.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: editName.trim(),
-                    address: editAddress.trim() || null,
-                    openingHours: editHours.trim() || null,
-                }),
+                body: JSON.stringify(body),
             });
             const data = await r.json().catch(() => ({}));
             if (!r.ok) { setEditError(data?.error || 'Update failed'); return; }
@@ -260,7 +276,12 @@ export default function ParkAdminPage() {
                         <>
                             {/* Map takes most of the space */}
                             <div className="flex-1 relative min-h-0">
-                                <ParkMiniMap key={selectedPark.id} park={selectedPark} />
+                                <ParkEditMap
+                                    key={selectedPark.id}
+                                    initialLat={Number(selectedPark.latitude)}
+                                    initialLng={Number(selectedPark.longitude)}
+                                    onMoved={(lat, lng) => { setEditLat(lat); setEditLng(lng); }}
+                                />
                                 <div className="absolute top-4 left-4 z-10 bg-white rounded-xl shadow-lg px-4 py-3">
                                     <p className="font-semibold text-zinc-900 text-sm">{selectedPark.name}</p>
                                     {(selectedPark.city || selectedPark.county) && (
@@ -268,11 +289,12 @@ export default function ParkAdminPage() {
                                             {[selectedPark.city, selectedPark.county].filter(Boolean).join(', ')}
                                         </p>
                                     )}
-                                    {selectedPark.latitude != null && (
+                                    {editLat != null && (
                                         <p className="text-xs text-zinc-400 mt-0.5 font-mono">
-                                            {Number(selectedPark.latitude).toFixed(5)}, {Number(selectedPark.longitude).toFixed(5)}
+                                            {editLat.toFixed(5)}, {editLng?.toFixed(5)}
                                         </p>
                                     )}
+                                    <p className="text-xs text-zinc-400 mt-1 italic">Drag marker to reposition</p>
                                 </div>
                             </div>
 
