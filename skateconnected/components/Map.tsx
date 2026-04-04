@@ -69,8 +69,6 @@ const Map: React.FC = () => {
     const accountRef = useRef<Account | null>(null);
 
     const [mapReady, setMapReady] = useState(false);
-    const [searchOpen, setSearchOpen] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
     const [accountLoaded, setAccountLoaded] = useState(false);
     const [account, setAccount] = useState<Account | null>(null);
 
@@ -276,7 +274,7 @@ const Map: React.FC = () => {
                 setSelectedSpot(null);
                 setAdminClickCoords(null);
                 setAddSpotCoords(null);
-                loadParkMembers(park.id);
+                if (accountRef.current) loadParkMembers(park.id);
             });
 
             markersRef.current.push({ park, marker });
@@ -503,61 +501,54 @@ const Map: React.FC = () => {
                         )}
                     </div>
 
-                    <div className="w-px h-4 bg-zinc-200 mr-1" />
-                    <button
-                        onClick={() => setSearchOpen(o => !o)}
-                        className={`p-1.5 rounded-xl transition-colors ${searchOpen ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800'}`}
-                        aria-label="Search"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                        </svg>
-                    </button>
-                    <div className="w-px h-4 bg-zinc-200 mx-1" />
-                    <Link href="/chat" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
-                        Chats
-                    </Link>
-                    {account?.isAdmin ? (
+                    {account ? (
                         <>
-                            <Link href="/account-admin" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
-                                Users
+                            <div className="w-px h-4 bg-zinc-200 mx-1" />
+                            <Link href="/chat" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                                Chats
                             </Link>
-                            <Link href="/park-admin" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                            {account.isAdmin ? (
+                                <>
+                                    <Link href="/account-admin" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                                        Users
+                                    </Link>
+                                    <Link href="/park-admin" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                                        Skateparks
+                                    </Link>
+                                    <Link href="/skatespot-admin" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                                        Spots
+                                    </Link>
+                                </>
+                            ) : (
+                                <>
+                                    <Link href="/skateparks" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                                        Skateparks
+                                    </Link>
+                                    <Link href="/skatespots" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                                        Spots
+                                    </Link>
+                                </>
+                            )}
+                        </>
+                    ) : accountLoaded ? (
+                        <>
+                            <div className="w-px h-4 bg-zinc-200 mx-1" />
+                            <Link href="/login" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                                Log in
+                            </Link>
+                            <Link href="/register" className="px-3 py-1 rounded-xl text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-700 transition-colors whitespace-nowrap">
+                                Register
+                            </Link>
+                            <div className="w-px h-4 bg-zinc-200 mx-1" />
+                            <Link href="/skateparks" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
                                 Skateparks
                             </Link>
-                            <Link href="/skatespot-admin" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                            <Link href="/skatespots" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
                                 Spots
                             </Link>
                         </>
-                    ) : (
-                        <Link href="/skateparks" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
-                            Skateparks
-                        </Link>
-                    )}
+                    ) : null}
                 </div>
-
-                {searchOpen && (
-                    <div className="flex items-center gap-2 bg-white rounded-2xl shadow-lg px-4 py-3 w-80">
-                        <svg className="w-4 h-4 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                        </svg>
-                        <input
-                            autoFocus
-                            type="text"
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            placeholder="Search people, skateparks, spots…"
-                            className="flex-1 text-sm text-zinc-800 outline-none placeholder:text-zinc-400 bg-transparent"
-                        />
-                        {searchQuery && (
-                            <button onClick={() => setSearchQuery('')} className="text-zinc-400 hover:text-zinc-600" aria-label="Clear search">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        )}
-                    </div>
-                )}
 
                 {/* Hints */}
                 {account?.isAdmin && (
@@ -622,48 +613,62 @@ const Map: React.FC = () => {
 
                     {/* Members */}
                     <div className="flex-1 overflow-y-auto p-4 min-h-0">
-                        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
-                            Skaters here ({parkMembers.length})
-                        </p>
-                        {membersLoading && (
-                            <p className="text-sm text-zinc-400">Loading…</p>
-                        )}
-                        {!membersLoading && parkMembers.length === 0 && (
-                            <p className="text-sm text-zinc-400 italic">No members yet. Be the first!</p>
-                        )}
-                        <ul className="space-y-1">
-                            {parkMembers.map((m) => {
-                                const isMe = account?.id === m.id;
-                                return (
-                                    <li key={m.id} className="flex items-center justify-between gap-2 py-1">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                            <div className="w-7 h-7 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-semibold text-zinc-600 shrink-0">
-                                                {(m.username).charAt(0).toUpperCase()}
-                                            </div>
-                                            <div className="min-w-0">
-                                                <span className="text-sm text-zinc-800 truncate block">
-                                                    {memberDisplayName(m)}
-                                                    {isMe && <span className="text-zinc-400 ml-1">(you)</span>}
-                                                </span>
-                                                {m.skillLevel && SKILL_BADGE[m.skillLevel] && (
-                                                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${SKILL_BADGE[m.skillLevel].className}`}>
-                                                        {SKILL_BADGE[m.skillLevel].label}
-                                                    </span>
+                        {account ? (
+                            <>
+                                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
+                                    Skaters here ({parkMembers.length})
+                                </p>
+                                {membersLoading && (
+                                    <p className="text-sm text-zinc-400">Loading…</p>
+                                )}
+                                {!membersLoading && parkMembers.length === 0 && (
+                                    <p className="text-sm text-zinc-400 italic">No members yet. Be the first!</p>
+                                )}
+                                <ul className="space-y-1">
+                                    {parkMembers.map((m) => {
+                                        const isMe = account?.id === m.id;
+                                        return (
+                                            <li key={m.id} className="flex items-center justify-between gap-2 py-1">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <div className="w-7 h-7 rounded-full bg-zinc-200 flex items-center justify-center text-xs font-semibold text-zinc-600 shrink-0">
+                                                        {(m.username).charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <span className="text-sm text-zinc-800 truncate block">
+                                                            {memberDisplayName(m)}
+                                                            {isMe && <span className="text-zinc-400 ml-1">(you)</span>}
+                                                        </span>
+                                                        {m.skillLevel && SKILL_BADGE[m.skillLevel] && (
+                                                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${SKILL_BADGE[m.skillLevel].className}`}>
+                                                                {SKILL_BADGE[m.skillLevel].label}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {!isMe && (
+                                                    <button
+                                                        onClick={() => setMessagingUser(m)}
+                                                        className="text-xs text-zinc-500 hover:text-zinc-900 px-2 py-0.5 rounded-lg hover:bg-zinc-100 transition-colors shrink-0"
+                                                    >
+                                                        Message
+                                                    </button>
                                                 )}
-                                            </div>
-                                        </div>
-                                        {!isMe && account && (
-                                            <button
-                                                onClick={() => setMessagingUser(m)}
-                                                className="text-xs text-zinc-500 hover:text-zinc-900 px-2 py-0.5 rounded-lg hover:bg-zinc-100 transition-colors shrink-0"
-                                            >
-                                                Message
-                                            </button>
-                                        )}
-                                    </li>
-                                );
-                            })}
-                        </ul>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-6 text-center">
+                                <p className="text-sm text-zinc-500 mb-3">Sign in to see who skates here</p>
+                                <Link
+                                    href="/login"
+                                    className="text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-700 transition-colors px-4 py-2 rounded-xl"
+                                >
+                                    Log in
+                                </Link>
+                            </div>
+                        )}
                     </div>
 
                     {/* Associate button */}

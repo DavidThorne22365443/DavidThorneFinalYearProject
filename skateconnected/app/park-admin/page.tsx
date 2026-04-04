@@ -96,7 +96,6 @@ export default function ParkAdminPage() {
     const [error, setError] = useState<string | null>(null);
 
     const [selectedId, setSelectedId] = useState<string | null>(null);
-    const [searchQuery, setSearchQuery] = useState('');
 
     // Edit form state
     const [editName, setEditName] = useState('');
@@ -108,17 +107,6 @@ export default function ParkAdminPage() {
     const [editError, setEditError] = useState<string | null>(null);
 
     const selectedPark = useMemo(() => parks.find((p) => p.id === selectedId) ?? null, [parks, selectedId]);
-
-    const filteredParks = useMemo(() => {
-        const q = searchQuery.trim().toLowerCase();
-        if (!q) return parks;
-        return parks.filter(
-            (p) =>
-                (p.name ?? '').toLowerCase().includes(q) ||
-                (p.city ?? '').toLowerCase().includes(q) ||
-                (p.county ?? '').toLowerCase().includes(q)
-        );
-    }, [parks, searchQuery]);
 
     useEffect(() => {
         (async () => {
@@ -231,26 +219,11 @@ export default function ParkAdminPage() {
             <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 65px)' }}>
                 {/* Left: list */}
                 <div className="w-80 shrink-0 overflow-y-auto border-r border-zinc-200 bg-white flex flex-col">
-                    <div className="p-4 border-b border-zinc-100">
-                        <div className="relative">
-                            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                            </svg>
-                            <input
-                                type="text"
-                                placeholder="Search parks…"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-3 py-2 text-sm border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-400"
-                            />
-                        </div>
-                    </div>
-
                     {loading && <p className="p-4 text-sm text-zinc-400">Loading…</p>}
                     {error && <p className="p-4 text-sm text-red-600">{error}</p>}
 
                     <div className="flex-1 overflow-y-auto">
-                        {filteredParks.map((park) => (
+                        {parks.map((park) => (
                             <button
                                 key={park.id}
                                 onClick={() => setSelectedId(park.id)}
@@ -262,10 +235,8 @@ export default function ParkAdminPage() {
                                 </p>
                             </button>
                         ))}
-                        {!loading && filteredParks.length === 0 && (
-                            <p className="p-4 text-sm text-zinc-400 italic">
-                                {parks.length === 0 ? 'No parks yet. Add them from the map.' : 'No parks match your search.'}
-                            </p>
+                        {!loading && parks.length === 0 && (
+                            <p className="p-4 text-sm text-zinc-400 italic">No parks yet. Add them from the map.</p>
                         )}
                     </div>
                 </div>

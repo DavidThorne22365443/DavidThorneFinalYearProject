@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type ConversationRow = {
     conversationId: string;
@@ -38,6 +39,8 @@ function formatTime(createdAt: string) {
 }
 
 export default function ChatPage() {
+    const router = useRouter();
+    const [authChecked, setAuthChecked] = useState(false);
     const [rows, setRows] = useState<ConversationRow[]>([]);
     const [listError, setListError] = useState<string | null>(null);
     const [myId, setMyId] = useState<string | null>(null);
@@ -60,9 +63,16 @@ export default function ChatPage() {
     useEffect(() => {
         fetch("/api/account", { credentials: "include" })
             .then((r) => (r.ok ? r.json() : null))
-            .then((data) => setMyId(data?.id ?? null))
-            .catch(() => {});
-    }, []);
+            .then((data) => {
+                if (!data) {
+                    router.replace("/login");
+                } else {
+                    setMyId(data.id);
+                    setAuthChecked(true);
+                }
+            })
+            .catch(() => router.replace("/login"));
+    }, [router]);
 
     async function loadList() {
         setListError(null);
@@ -190,6 +200,8 @@ export default function ChatPage() {
             setDecliningId(null);
         }
     }
+
+    if (!authChecked) return null;
 
     const pendingInvites = rows.filter((r) => r.status === "pending" && r.inviterId !== myId);
     const otherConversations = rows.filter((r) => r.status === "accepted" || r.inviterId === myId);
