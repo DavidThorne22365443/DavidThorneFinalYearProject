@@ -6,6 +6,7 @@ const { defineConversationParticipant } = require("./ConversationParticipant");
 const { defineMessage } = require("./Message");
 const { definePendingRegistration } = require("./PendingRegistration");
 const { defineSkatespot } = require("./Skatespot");
+const { defineNotice } = require("./Notice");
 
 function initModels(sequelize) {
 
@@ -17,6 +18,7 @@ function initModels(sequelize) {
     const ParkMember = defineParkMember(sequelize);
     const PendingRegistration = definePendingRegistration(sequelize);
     const Skatespot = defineSkatespot(sequelize);
+    const Notice = defineNotice(sequelize);
 
     // Park <-> Account many-to-many via ParkMember (users can join up to 4 parks)
     Park.belongsToMany(Account, {
@@ -73,6 +75,10 @@ function initModels(sequelize) {
     Skatespot.belongsTo(Account, { foreignKey: "addedById", as: "addedBy" });
     Account.hasMany(Skatespot, { foreignKey: "addedById", as: "submittedSpots" });
 
+    // Notice -> Account (addedBy)
+    Notice.belongsTo(Account, { foreignKey: "addedById", as: "addedBy" });
+    Account.hasMany(Notice, { foreignKey: "addedById", as: "submittedNotices" });
+
     return {
         sequelize,
         Account,
@@ -83,6 +89,7 @@ function initModels(sequelize) {
         Message,
         PendingRegistration,
         Skatespot,
+        Notice,
     };
 }
 

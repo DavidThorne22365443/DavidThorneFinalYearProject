@@ -507,6 +507,9 @@ const Map: React.FC = () => {
                             <Link href="/chat" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
                                 Chats
                             </Link>
+                            <Link href="/news" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                                News
+                            </Link>
                             {account.isAdmin ? (
                                 <>
                                     <Link href="/account-admin" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
@@ -533,6 +536,9 @@ const Map: React.FC = () => {
                     ) : accountLoaded ? (
                         <>
                             <div className="w-px h-4 bg-zinc-200 mx-1" />
+                            <Link href="/news" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                                News
+                            </Link>
                             <Link href="/login" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
                                 Log in
                             </Link>

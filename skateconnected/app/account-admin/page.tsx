@@ -22,7 +22,6 @@ type Account = {
 
 export default function AccountAdminPage() {
     const router = useRouter();
-    const [user, setUser] = useState<Account | null>(null);
     const [authChecking, setAuthChecking] = useState(true);
     const [accessDenied, setAccessDenied] = useState(false);
 
@@ -34,6 +33,7 @@ export default function AccountAdminPage() {
     const [createUsername, setCreateUsername] = useState("");
     const [editUsername, setEditUsername] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     const filteredAccounts = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
@@ -56,22 +56,9 @@ export default function AccountAdminPage() {
             setAccessDenied(false);
             try {
                 const r = await fetch("/api/account", { cache: "no-store" });
-                if (r.status === 401) {
-                    router.replace("/login");
-                    return;
-                }
+                if (r.status === 401) { router.replace("/login"); return; }
                 const data = await r.json().catch(() => ({}));
-                if (!r.ok) {
-                    setAccessDenied(true);
-                    setUser(null);
-                    return;
-                }
-                setUser(data);
-                if (!data?.isAdmin) {
-                    setAccessDenied(true);
-                    return;
-                }
-                setAccessDenied(false);
+                if (!r.ok || !data?.isAdmin) { setAccessDenied(true); return; }
             } finally {
                 setAuthChecking(false);
             }
@@ -84,11 +71,7 @@ export default function AccountAdminPage() {
         try {
             const r = await fetch("/api/accounts", { cache: "no-store" });
             const data = await r.json().catch(() => []);
-            if (!r.ok) {
-                setError((data as any)?.error || "Failed to load accounts");
-                setAccounts([]);
-                return;
-            }
+            if (!r.ok) { setError((data as any)?.error || "Failed to load accounts"); setAccounts([]); return; }
             setAccounts(Array.isArray(data) ? data : []);
         } catch {
             setError("Failed to reach API");
@@ -103,7 +86,7 @@ export default function AccountAdminPage() {
     }, [authChecking, accessDenied]);
 
     useEffect(() => {
-        if (selectedAccount) setEditUsername(selectedAccount.username);
+        if (selectedAccount) { setEditUsername(selectedAccount.username); setConfirmDelete(false); }
     }, [selectedAccount]);
 
     async function createAccount() {
@@ -116,10 +99,7 @@ export default function AccountAdminPage() {
                 body: JSON.stringify({ username: createUsername.trim() }),
             });
             const data = await r.json().catch(() => ({}));
-            if (!r.ok) {
-                setError((data as any)?.error || "Create failed");
-                return;
-            }
+            if (!r.ok) { setError((data as any)?.error || "Create failed"); return; }
             setAccounts((prev) => [...prev, data].sort((a, b) => a.username.localeCompare(b.username)));
             setCreateUsername("");
         } catch {
@@ -128,7 +108,7 @@ export default function AccountAdminPage() {
     }
 
     async function updateSelected() {
-        if (!selectedAccount || editUsername.trim() === "") return;
+        if (!selectedAccount || !editUsername.trim()) return;
         setError(null);
         try {
             const r = await fetch(`/api/accounts/${selectedAccount.id}`, {
@@ -137,12 +117,10 @@ export default function AccountAdminPage() {
                 body: JSON.stringify({ username: editUsername.trim() }),
             });
             const data = await r.json().catch(() => ({}));
-            if (!r.ok) {
-                setError((data as any)?.error || "Update failed");
-                return;
-            }
+            if (!r.ok) { setError((data as any)?.error || "Update failed"); return; }
             setAccounts((prev) =>
-                prev.map((a) => (a.id === selectedAccount.id ? { ...a, username: editUsername.trim() } : a)).sort((a, b) => a.username.localeCompare(b.username))
+                prev.map((a) => (a.id === selectedAccount.id ? { ...a, username: editUsername.trim() } : a))
+                    .sort((a, b) => a.username.localeCompare(b.username))
             );
         } catch {
             setError("Update failed (network)");
@@ -161,113 +139,206 @@ export default function AccountAdminPage() {
             }
             setAccounts((prev) => prev.filter((a) => a.id !== selectedAccount.id));
             setSelectedId(null);
+            setConfirmDelete(false);
         } catch {
             setError("Delete failed (network)");
         }
     }
 
     if (authChecking) {
-        return (
-            <div className="p-6 max-w-5xl mx-auto">
-                <p>Checking access…</p>
-            </div>
-        );
+        return <div className="p-8 text-sm text-zinc-500">Checking access…</div>;
     }
 
     if (accessDenied) {
         return (
-            <div className="p-6 max-w-5xl mx-auto space-y-4">
-                <h1 className="text-2xl font-bold">Account Admin</h1>
-                <p className="text-red-600">Access denied. Admin only.</p>
-                <Link href="/map" className="text-blue-600 hover:underline">Back to map</Link>
+            <div className="p-8 space-y-2">
+                <p className="text-red-600 font-medium">Admin access required.</p>
+                <Link href="/map" className="text-sm text-zinc-500 underline">Back to map</Link>
             </div>
         );
     }
 
     return (
-        <div className="p-6 max-w-5xl mx-auto space-y-6">
-            <div className="flex items-center gap-4">
-                <h1 className="text-2xl font-bold">Account Admin</h1>
-                <Link href="/map" className="text-sm text-blue-600 hover:underline">Map</Link>
-                <Link href="/park-admin" className="text-sm text-blue-600 hover:underline">Park Admin</Link>
+        <div className="min-h-screen bg-zinc-50 flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-5 bg-white border-b border-zinc-200 flex items-center gap-4">
+                <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm">← Back to map</Link>
+                <h1 className="text-xl font-bold text-zinc-900">User Admin</h1>
+                <span className="text-xs text-zinc-400">
+                    ({filteredAccounts.length}{searchQuery ? ` of ${accounts.length}` : ""} users)
+                </span>
+                {loading && <span className="text-xs text-zinc-400 ml-auto">Loading…</span>}
+                {!loading && (
+                    <button
+                        onClick={loadAccounts}
+                        className="ml-auto text-xs text-zinc-400 hover:text-zinc-700 transition-colors"
+                    >
+                        Reload
+                    </button>
+                )}
             </div>
 
-            {loading && <p>Loading…</p>}
-            {error && <p className="text-red-600">{error}</p>}
+            {error && (
+                <div className="mx-6 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {error}
+                </div>
+            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="border rounded p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                        <h2 className="font-semibold">All Accounts</h2>
-                        <button className="border rounded px-3 py-1" onClick={loadAccounts}>
-                            Reload
-                        </button>
+            <div className="flex flex-1 overflow-hidden" style={{ height: "calc(100vh - 65px)" }}>
+                {/* Left: account list */}
+                <div className="w-80 shrink-0 border-r border-zinc-200 bg-white flex flex-col">
+                    <div className="p-3 border-b border-zinc-100">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by username or email…"
+                            className="w-full text-sm border border-zinc-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-300 bg-zinc-50"
+                        />
                     </div>
-                    <input
-                        type="text"
-                        placeholder="Search by username or email…"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full border rounded px-3 py-2 text-sm"
-                    />
-                    <div className="max-h-[420px] overflow-auto border rounded">
+
+                    <div className="flex-1 overflow-y-auto">
                         {filteredAccounts.map((a) => (
                             <button
                                 key={a.id}
                                 onClick={() => setSelectedId(a.id)}
-                                className={`w-full text-left px-3 py-2 border-b hover:bg-gray-50 ${selectedId === a.id ? "bg-gray-100" : ""}`}
+                                className={`w-full text-left px-4 py-3 border-b border-zinc-100 transition-colors ${
+                                    selectedId === a.id ? "bg-zinc-100" : "hover:bg-zinc-50"
+                                }`}
                             >
-                                <div className="font-medium">{a.username}</div>
-                                <div className="text-sm text-gray-600">
-                                    {a.email ?? "—"} {a.isAdmin ? " (admin)" : ""}
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-zinc-900 text-sm truncate">{a.username}</p>
+                                    {a.isAdmin && (
+                                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-900 text-white shrink-0">
+                                            admin
+                                        </span>
+                                    )}
                                 </div>
+                                <p className="text-xs text-zinc-400 mt-0.5 truncate">{a.email ?? "No email"}</p>
                             </button>
                         ))}
-                        {filteredAccounts.length === 0 && !loading && (
-                            <div className="p-3 text-gray-600">{accounts.length === 0 ? "No accounts." : "No accounts match your search."}</div>
+                        {!loading && filteredAccounts.length === 0 && accounts.length > 0 && (
+                            <p className="p-4 text-sm text-zinc-400 italic">No accounts match your search.</p>
+                        )}
+                        {!loading && accounts.length === 0 && (
+                            <p className="p-4 text-sm text-zinc-400 italic">No accounts yet.</p>
                         )}
                     </div>
                 </div>
 
-                <div className="space-y-6">
-                    <div className="border rounded p-4 space-y-3">
-                        <h2 className="font-semibold">Create Account</h2>
+                {/* Right: detail + actions */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                    {/* Create new account */}
+                    <div className="bg-white rounded-xl border border-zinc-200 p-5">
+                        <h2 className="text-sm font-semibold text-zinc-900 mb-3">Create Account</h2>
                         <div className="flex gap-2">
                             <input
-                                className="border rounded px-3 py-2 flex-1"
+                                type="text"
                                 placeholder="Username"
                                 value={createUsername}
                                 onChange={(e) => setCreateUsername(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") createAccount(); }}
+                                className="flex-1 text-sm border border-zinc-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-400"
                             />
-                            <button className="border rounded px-3 py-2" onClick={createAccount} disabled={!createUsername.trim()}>
+                            <button
+                                onClick={createAccount}
+                                disabled={!createUsername.trim()}
+                                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
                                 Create
                             </button>
                         </div>
                     </div>
 
-                    <div className="border rounded p-4 space-y-3">
-                        <h2 className="font-semibold">Edit / Delete</h2>
-                        {!selectedAccount && <p className="text-gray-600">Select an account to edit or delete.</p>}
-                        {selectedAccount && (
-                            <div className="space-y-2">
-                                <div className="text-sm text-gray-600">ID: {selectedAccount.id}</div>
-                                <input
-                                    className="border rounded px-3 py-2 w-full"
-                                    placeholder="Username"
-                                    value={editUsername}
-                                    onChange={(e) => setEditUsername(e.target.value)}
-                                />
+                    {/* Selected account detail */}
+                    {selectedAccount ? (
+                        <div className="bg-white rounded-xl border border-zinc-200 p-5 space-y-4">
+                            {/* Account info */}
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h2 className="text-sm font-semibold text-zinc-900">{selectedAccount.username}</h2>
+                                    {selectedAccount.isAdmin && (
+                                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-900 text-white">
+                                            admin
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="space-y-1">
+                                    {selectedAccount.email && (
+                                        <p className="text-xs text-zinc-500">{selectedAccount.email}</p>
+                                    )}
+                                    {selectedAccount.city && (
+                                        <p className="text-xs text-zinc-400">{selectedAccount.city}</p>
+                                    )}
+                                    {selectedAccount.createdAt && (
+                                        <p className="text-xs text-zinc-400">
+                                            Joined {new Date(selectedAccount.createdAt).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" })}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="border-t border-zinc-100" />
+
+                            {/* Edit username */}
+                            <div>
+                                <label className="block text-xs font-medium text-zinc-600 mb-1.5">Username</label>
                                 <div className="flex gap-2">
-                                    <button className="border rounded px-3 py-2" onClick={updateSelected}>
-                                        Update
-                                    </button>
-                                    <button className="border rounded px-3 py-2" onClick={deleteSelected}>
-                                        Delete
+                                    <input
+                                        type="text"
+                                        value={editUsername}
+                                        onChange={(e) => setEditUsername(e.target.value)}
+                                        className="flex-1 text-sm border border-zinc-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                                    />
+                                    <button
+                                        onClick={updateSelected}
+                                        disabled={!editUsername.trim() || editUsername.trim() === selectedAccount.username}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Save
                                     </button>
                                 </div>
                             </div>
-                        )}
-                    </div>
+
+                            <div className="border-t border-zinc-100" />
+
+                            {/* Delete */}
+                            <div>
+                                {!confirmDelete ? (
+                                    <button
+                                        onClick={() => setConfirmDelete(true)}
+                                        className="w-full py-2 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+                                    >
+                                        Delete account
+                                    </button>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <p className="text-sm text-zinc-700">
+                                            Delete <strong>{selectedAccount.username}</strong>? This cannot be undone.
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setConfirmDelete(false)}
+                                                className="flex-1 py-2 rounded-lg text-sm font-medium text-zinc-700 border border-zinc-300 hover:bg-zinc-50 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={deleteSelected}
+                                                className="flex-1 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors"
+                                            >
+                                                Confirm delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-xl border border-zinc-200 p-8 flex items-center justify-center">
+                            <p className="text-sm text-zinc-400">Select an account to edit or delete it</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

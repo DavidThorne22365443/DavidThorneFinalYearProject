@@ -10,6 +10,7 @@ const { accountsRouter } = require("./routes/accounts");
 const { parksRouter } = require("./routes/park");
 const { chatRouter } = require("./routes/chat");
 const { skatespotRouter } = require("./routes/skatespot");
+const { noticeRouter } = require("./routes/notice");
 const { seedAdmin } = require("./seedAdmin");
 
 
@@ -70,6 +71,7 @@ async function connectDbAndMountRoutes() {
         app.use("/park", parksRouter(models));
         app.use("/chat", chatRouter(models));
         app.use("/skatespot", skatespotRouter(models));
+        app.use("/notice", noticeRouter(models));
     } catch (err) {
         console.error("DB setup failed (server still up, /health works):", err?.stack || err);
     }
