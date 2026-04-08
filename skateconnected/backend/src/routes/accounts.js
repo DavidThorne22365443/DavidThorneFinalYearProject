@@ -65,30 +65,6 @@ function accountsRouter(models) {
 
             const passwordHash = await bcrypt.hash(password, 10);
 
-            // TEMPORARY: email verification bypassed for testing — re-enable by
-            // uncommenting the PendingRegistration block below and removing the
-            // Account.create block.
-            const account = await Account.create({
-                username: username.trim(),
-                email: emailTrimmed,
-                passwordHash,
-                firstName: firstName != null ? String(firstName).trim().slice(0, 50) : null,
-                lastName: lastName != null ? String(lastName).trim().slice(0, 50) : null,
-                showLastName: showLastName !== false,
-                favouriteTrick: favouriteTrick != null && String(favouriteTrick).trim() ? String(favouriteTrick).trim().slice(0, 80) : null,
-                city: city != null && String(city).trim() ? String(city).trim().slice(0, 50) : null,
-                skillLevel: ["beginner", "intermediate", "advanced"].includes(skillLevel) ? skillLevel : null,
-                emailVerified: true,
-            });
-
-            return res.status(201).json({
-                message: "Account created",
-                email: emailTrimmed,
-                accountCreated: true,
-            });
-
-            // RESTORE FOR PRODUCTION — delete the block above and uncomment below:
-            /*
             const verificationCode = String(Math.floor(100000 + Math.random() * 900000));
             const verificationCodeExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
             await PendingRegistration.destroy({ where: { email: emailTrimmed } });
@@ -110,7 +86,6 @@ function accountsRouter(models) {
                 message: "Check your email for a verification code",
                 email: emailTrimmed,
             });
-            */
         } catch (err) {
             console.error("POST /accounts/register failed:", err);
             return res.status(500).json({ error: "internal server error" });
