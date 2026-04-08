@@ -82,9 +82,8 @@ export default function RegisterPage() {
                 return;
             }
 
-            // TEMPORARY: email verification disabled for testing
-            // RESTORE: replace the router.push line with setVerifyEmail / setStep("verify")
-            router.push("/login?registered=1");
+            setVerifyEmail(email.trim().toLowerCase());
+            setStep("verify");
         } catch {
             setError("Could not reach the server. Is the app running?");
         } finally {
