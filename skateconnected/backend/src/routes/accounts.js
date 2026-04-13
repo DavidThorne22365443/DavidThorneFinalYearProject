@@ -18,7 +18,7 @@ function accountToSafeJson(account) {
 
 function accountsRouter(models) {
     const router = express.Router();
-    const { Account, PendingRegistration, ParkMember } = models;
+    const { Account, PendingRegistration, ParkMember, ConversationParticipant, Conversation, Skatespot, Notice } = models;
 
     // -----------------------
     // AUTH
@@ -433,10 +433,29 @@ function accountsRouter(models) {
                 return res.status(400).json({ error: "invalid account id (uuid)" });
             }
 
-            const deleted = await Account.destroy({ where: { id } });
-            if (!deleted) {
+            const account = await Account.findByPk(id);
+            if (!account) {
                 return res.status(404).json({ error: "account not found" });
             }
+
+            // 1. Remove park memberships
+            await ParkMember.destroy({ where: { accountId: id } });
+
+            // 2. Delete all conversations this user is part of (cascades to messages + participants)
+            const participantRows = await ConversationParticipant.findAll({ where: { accountId: id }, attributes: ["conversationId"] });
+            const convIds = participantRows.map((r) => r.conversationId);
+            if (convIds.length > 0) {
+                await Conversation.destroy({ where: { id: convIds } });
+            }
+
+            // 3. Null out skate spots submitted by this user (addedById is nullable)
+            await Skatespot.update({ addedById: null }, { where: { addedById: id } });
+
+            // 4. Delete notices submitted by this user (addedById is not nullable)
+            await Notice.destroy({ where: { addedById: id } });
+
+            // 5. Delete the account
+            await account.destroy();
 
             return res.status(204).send();
         } catch (err) {
