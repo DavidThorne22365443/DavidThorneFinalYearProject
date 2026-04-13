@@ -52,6 +52,10 @@ export default function NewsPage() {
     const [showForm, setShowForm] = useState(false);
 
     useEffect(() => {
+        localStorage.setItem('sc_news_last_seen', new Date().toISOString());
+    }, []);
+
+    useEffect(() => {
         fetch('/api/account')
             .then((r) => (r.ok ? r.json() : null))
             .then((data) => {
@@ -90,6 +94,14 @@ export default function NewsPage() {
                 body: JSON.stringify({ title, content, eventDate: eventDate || null }),
             });
             if (r.ok) {
+                const created = await r.json();
+                if (account?.isAdmin && created?.id) {
+                    const approveRes = await fetch(`/api/notice/${created.id}/approve`, { method: 'PUT' });
+                    if (approveRes.ok) {
+                        const approved = await approveRes.json();
+                        setNotices((prev) => sortNotices([...prev, approved]));
+                    }
+                }
                 setSubmitStatus('success');
                 setTitle('');
                 setContent('');

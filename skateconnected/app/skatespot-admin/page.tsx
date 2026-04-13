@@ -259,14 +259,14 @@ export default function SkatespotAdminPage() {
     return (
         <div className="min-h-screen bg-zinc-50 flex flex-col">
             {/* Header */}
-            <div className="px-6 py-5 bg-white border-b border-zinc-200 flex items-center gap-4">
-                <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm">← Back to map</Link>
-                <h1 className="text-xl font-bold text-zinc-900">Skatespot Admin</h1>
+            <div className="px-4 py-3 md:px-6 md:py-5 bg-white border-b border-zinc-200 flex items-center gap-3">
+                <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm shrink-0">← Back</Link>
+                <h1 className="text-lg md:text-xl font-bold text-zinc-900">Skatespot Admin</h1>
             </div>
 
-            <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 65px)' }}>
-                {/* Left: lists */}
-                <div className="w-96 shrink-0 overflow-y-auto border-r border-zinc-200 bg-white flex flex-col">
+            <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+                {/* Lists */}
+                <div className="w-full md:w-96 shrink-0 overflow-y-auto border-b md:border-b-0 md:border-r border-zinc-200 bg-white flex flex-col max-h-[45vh] md:max-h-none">
                     <div className="flex-1 overflow-y-auto p-4 space-y-6">
                         {loading && <p className="text-sm text-zinc-500">Loading…</p>}
                         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
@@ -375,8 +375,8 @@ export default function SkatespotAdminPage() {
                     </div>
                 </div>
 
-                {/* Right: map preview / edit */}
-                <div className={`flex-1 ${isApprovedPreview ? 'flex flex-col overflow-hidden' : 'relative'} bg-zinc-100`}>
+                {/* Map preview / edit */}
+                <div className={`flex-1 min-h-[40vh] md:min-h-0 ${isApprovedPreview ? 'flex flex-col overflow-hidden' : 'relative'} bg-zinc-100`}>
                     {previewSpot ? (
                         isApprovedPreview ? (
                             // Approved spot — editable map + edit form

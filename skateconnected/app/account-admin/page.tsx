@@ -30,7 +30,6 @@ export default function AccountAdminPage() {
     const [error, setError] = useState<string | null>(null);
 
     const [selectedId, setSelectedId] = useState<string | null>(null);
-    const [createUsername, setCreateUsername] = useState("");
     const [editUsername, setEditUsername] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -89,24 +88,6 @@ export default function AccountAdminPage() {
         if (selectedAccount) { setEditUsername(selectedAccount.username); setConfirmDelete(false); }
     }, [selectedAccount]);
 
-    async function createAccount() {
-        if (!createUsername.trim()) return;
-        setError(null);
-        try {
-            const r = await fetch("/api/accounts", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username: createUsername.trim() }),
-            });
-            const data = await r.json().catch(() => ({}));
-            if (!r.ok) { setError((data as any)?.error || "Create failed"); return; }
-            setAccounts((prev) => [...prev, data].sort((a, b) => a.username.localeCompare(b.username)));
-            setCreateUsername("");
-        } catch {
-            setError("Create failed (network)");
-        }
-    }
-
     async function updateSelected() {
         if (!selectedAccount || !editUsername.trim()) return;
         setError(null);
@@ -161,9 +142,9 @@ export default function AccountAdminPage() {
     return (
         <div className="min-h-screen bg-zinc-50 flex flex-col">
             {/* Header */}
-            <div className="px-6 py-5 bg-white border-b border-zinc-200 flex items-center gap-4">
-                <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm">← Back to map</Link>
-                <h1 className="text-xl font-bold text-zinc-900">User Admin</h1>
+            <div className="px-4 py-3 md:px-6 md:py-5 bg-white border-b border-zinc-200 flex items-center gap-3">
+                <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm shrink-0">← Back</Link>
+                <h1 className="text-lg md:text-xl font-bold text-zinc-900">User Admin</h1>
                 <span className="text-xs text-zinc-400">
                     ({filteredAccounts.length}{searchQuery ? ` of ${accounts.length}` : ""} users)
                 </span>
@@ -184,9 +165,9 @@ export default function AccountAdminPage() {
                 </div>
             )}
 
-            <div className="flex flex-1 overflow-hidden" style={{ height: "calc(100vh - 65px)" }}>
-                {/* Left: account list */}
-                <div className="w-80 shrink-0 border-r border-zinc-200 bg-white flex flex-col">
+            <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+                {/* Account list */}
+                <div className="w-full md:w-80 shrink-0 border-b md:border-b-0 md:border-r border-zinc-200 bg-white flex flex-col max-h-[40vh] md:max-h-none">
                     <div className="p-3 border-b border-zinc-100">
                         <input
                             type="text"
@@ -226,30 +207,8 @@ export default function AccountAdminPage() {
                     </div>
                 </div>
 
-                {/* Right: detail + actions */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                    {/* Create new account */}
-                    <div className="bg-white rounded-xl border border-zinc-200 p-5">
-                        <h2 className="text-sm font-semibold text-zinc-900 mb-3">Create Account</h2>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                placeholder="Username"
-                                value={createUsername}
-                                onChange={(e) => setCreateUsername(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === "Enter") createAccount(); }}
-                                className="flex-1 text-sm border border-zinc-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-400"
-                            />
-                            <button
-                                onClick={createAccount}
-                                disabled={!createUsername.trim()}
-                                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Create
-                            </button>
-                        </div>
-                    </div>
-
+                {/* Detail + actions */}
+                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
                     {/* Selected account detail */}
                     {selectedAccount ? (
                         <div className="bg-white rounded-xl border border-zinc-200 p-5 space-y-4">
@@ -304,7 +263,9 @@ export default function AccountAdminPage() {
 
                             {/* Delete */}
                             <div>
-                                {!confirmDelete ? (
+                                {selectedAccount.isAdmin ? (
+                                    <p className="text-xs text-zinc-400 italic text-center">Admin accounts cannot be deleted.</p>
+                                ) : !confirmDelete ? (
                                     <button
                                         onClick={() => setConfirmDelete(true)}
                                         className="w-full py-2 rounded-lg text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors"

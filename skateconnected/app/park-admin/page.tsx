@@ -210,15 +210,15 @@ export default function ParkAdminPage() {
     return (
         <div className="min-h-screen bg-zinc-50 flex flex-col">
             {/* Header */}
-            <div className="px-6 py-5 bg-white border-b border-zinc-200 flex items-center gap-4">
-                <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm">← Back to map</Link>
-                <h1 className="text-xl font-bold text-zinc-900">Skatepark Admin</h1>
+            <div className="px-4 py-3 md:px-6 md:py-5 bg-white border-b border-zinc-200 flex items-center gap-3">
+                <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm shrink-0">← Back</Link>
+                <h1 className="text-lg md:text-xl font-bold text-zinc-900">Skatepark Admin</h1>
                 <span className="text-xs text-zinc-400">({parks.length} parks)</span>
             </div>
 
-            <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 65px)' }}>
-                {/* Left: list */}
-                <div className="w-80 shrink-0 overflow-y-auto border-r border-zinc-200 bg-white flex flex-col">
+            <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+                {/* List */}
+                <div className="w-full md:w-80 shrink-0 overflow-y-auto border-b md:border-b-0 md:border-r border-zinc-200 bg-white flex flex-col max-h-[35vh] md:max-h-none">
                     {loading && <p className="p-4 text-sm text-zinc-400">Loading…</p>}
                     {error && <p className="p-4 text-sm text-red-600">{error}</p>}
 
@@ -241,8 +241,8 @@ export default function ParkAdminPage() {
                     </div>
                 </div>
 
-                {/* Right: map + edit */}
-                <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Map + edit */}
+                <div className="flex-1 flex flex-col overflow-hidden min-h-[40vh] md:min-h-0">
                     {selectedPark ? (
                         <>
                             {/* Map takes most of the space */}

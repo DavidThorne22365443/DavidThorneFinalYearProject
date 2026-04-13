@@ -61,6 +61,10 @@ export default function ChatPage() {
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
+        localStorage.setItem('sc_chats_last_seen', new Date().toISOString());
+    }, []);
+
+    useEffect(() => {
         fetch("/api/account", { credentials: "include" })
             .then((r) => (r.ok ? r.json() : null))
             .then((data) => {

@@ -72,6 +72,10 @@ const Map: React.FC = () => {
     const [accountLoaded, setAccountLoaded] = useState(false);
     const [account, setAccount] = useState<Account | null>(null);
 
+    // Notification badges
+    const [unreadChats, setUnreadChats] = useState(false);
+    const [unreadNews, setUnreadNews] = useState(false);
+
     // Parks
     const [parks, setParks] = useState<Park[]>([]);
 
@@ -148,6 +152,36 @@ const Map: React.FC = () => {
             .then((data: Skatespot[]) => setSkatespots(Array.isArray(data) ? data : []))
             .catch(() => {});
     }, []);
+
+    // Check for unread chats / new notices
+    useEffect(() => {
+        if (!accountLoaded) return;
+
+        // Notices — visible to everyone
+        fetch('/api/notice', { cache: 'no-store' })
+            .then((r) => r.ok ? r.json() : [])
+            .then((data: { createdAt: string }[]) => {
+                if (!Array.isArray(data) || data.length === 0) return;
+                const lastSeen = localStorage.getItem('sc_news_last_seen');
+                const latest = data.reduce((a, b) => a.createdAt > b.createdAt ? a : b);
+                if (!lastSeen || latest.createdAt > lastSeen) setUnreadNews(true);
+            })
+            .catch(() => {});
+
+        // Chats — only if logged in
+        if (!account) return;
+        fetch('/api/chat/conversations', { cache: 'no-store' })
+            .then((r) => r.ok ? r.json() : [])
+            .then((data: { status: string; inviterId: string | null; lastMessage: { createdAt: string } | null }[]) => {
+                if (!Array.isArray(data)) return;
+                const hasPendingInvite = data.some((c) => c.status === 'pending' && c.inviterId !== account.id);
+                if (hasPendingInvite) { setUnreadChats(true); return; }
+                const lastSeen = localStorage.getItem('sc_chats_last_seen');
+                const hasNew = data.some((c) => c.lastMessage && (!lastSeen || c.lastMessage.createdAt > lastSeen));
+                setUnreadChats(hasNew);
+            })
+            .catch(() => {});
+    }, [accountLoaded, account]);
 
     // Load user's current memberships
     useEffect(() => {
@@ -455,8 +489,8 @@ const Map: React.FC = () => {
             <div ref={mapContainerRef} style={{ position: 'absolute', top: 0, bottom: 0, width: '100%' }} />
 
             {/* TOP-LEFT FLOATING NAVBAR */}
-            <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-                <div className="flex items-center gap-1 bg-white rounded-2xl shadow-lg px-4 py-2.5">
+            <div className="absolute top-3 left-3 z-10 flex flex-col gap-2 max-w-[calc(100vw-1.5rem)]">
+                <div className="flex flex-wrap items-center gap-1 bg-white rounded-2xl shadow-lg px-3 py-2">
                     {/* Brand name with logout dropdown */}
                     <div className="relative mr-3">
                         <button
@@ -504,11 +538,13 @@ const Map: React.FC = () => {
                     {account ? (
                         <>
                             <div className="w-px h-4 bg-zinc-200 mx-1" />
-                            <Link href="/chat" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                            <Link href="/chat" className="relative px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
                                 Chats
+                                {unreadChats && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-500 border border-white" />}
                             </Link>
-                            <Link href="/news" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                            <Link href="/news" className="relative px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
                                 News
+                                {unreadNews && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-500 border border-white" />}
                             </Link>
                             {account.isAdmin ? (
                                 <>
@@ -536,8 +572,9 @@ const Map: React.FC = () => {
                     ) : accountLoaded ? (
                         <>
                             <div className="w-px h-4 bg-zinc-200 mx-1" />
-                            <Link href="/news" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
+                            <Link href="/news" className="relative px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
                                 News
+                                {unreadNews && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-500 border border-white" />}
                             </Link>
                             <Link href="/login" className="px-3 py-1 rounded-xl text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap">
                                 Log in
@@ -571,7 +608,7 @@ const Map: React.FC = () => {
 
             {/* PARK DETAIL PANEL */}
             {selectedPark && (
-                <div className="absolute top-4 right-4 z-10 w-80 bg-white rounded-2xl shadow-xl flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden">
+                <div className="absolute bottom-0 left-0 right-0 z-10 bg-white rounded-t-2xl shadow-xl flex flex-col max-h-[70vh] overflow-hidden md:top-4 md:right-4 md:bottom-auto md:left-auto md:w-80 md:rounded-2xl md:max-h-[calc(100vh-2rem)]">
                     {/* Header */}
                     <div className="flex items-start justify-between p-4 border-b border-zinc-100">
                         <div className="flex-1 min-w-0 pr-2">
@@ -714,7 +751,7 @@ const Map: React.FC = () => {
 
             {/* SKATESPOT DETAIL PANEL */}
             {selectedSpot && (
-                <div className="absolute top-4 right-4 z-10 w-80 bg-white rounded-2xl shadow-xl overflow-hidden">
+                <div className="absolute bottom-0 left-0 right-0 z-10 bg-white rounded-t-2xl shadow-xl overflow-hidden md:top-4 md:right-4 md:bottom-auto md:left-auto md:w-80 md:rounded-2xl">
                     <div className="flex items-start justify-between p-4 border-b border-zinc-100">
                         <div className="flex-1 min-w-0 pr-2">
                             <div className="flex items-center gap-2 mb-0.5">
@@ -751,7 +788,7 @@ const Map: React.FC = () => {
 
             {/* ADMIN ADD PARK PANEL */}
             {account?.isAdmin && adminClickCoords && (
-                <div className="absolute top-4 right-4 z-10 w-80 bg-white rounded-2xl shadow-xl overflow-hidden">
+                <div className="absolute bottom-0 left-0 right-0 z-10 bg-white rounded-t-2xl shadow-xl overflow-hidden md:top-4 md:right-4 md:bottom-auto md:left-auto md:w-80 md:rounded-2xl">
                     <div className="flex items-center justify-between p-4 border-b border-zinc-100">
                         <h2 className="font-bold text-zinc-900 text-base">Add Skatepark</h2>
                         <button
@@ -826,7 +863,7 @@ const Map: React.FC = () => {
 
             {/* USER ADD SKATESPOT PANEL */}
             {account && !account.isAdmin && addSpotCoords && (
-                <div className="absolute top-4 right-4 z-10 w-80 bg-white rounded-2xl shadow-xl overflow-hidden">
+                <div className="absolute bottom-0 left-0 right-0 z-10 bg-white rounded-t-2xl shadow-xl overflow-hidden md:top-4 md:right-4 md:bottom-auto md:left-auto md:w-80 md:rounded-2xl">
                     <div className="flex items-center justify-between p-4 border-b border-zinc-100">
                         <div>
                             <h2 className="font-bold text-zinc-900 text-base">Suggest a Skatespot</h2>

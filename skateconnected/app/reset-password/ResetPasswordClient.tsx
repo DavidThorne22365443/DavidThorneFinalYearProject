@@ -15,7 +15,11 @@ export default function ResetPasswordClient() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
-    const canSubmit = password.length >= 6 && password === confirm && !loading;
+    const pwHasLength = password.length >= 8;
+    const pwHasNumber = /\d/.test(password);
+    const pwHasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(password);
+    const passwordValid = pwHasLength && pwHasNumber && pwHasSpecial;
+    const canSubmit = passwordValid && password === confirm && !loading;
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -124,7 +128,19 @@ export default function ResetPasswordClient() {
                                     {showPw ? "Hide" : "Show"}
                                 </button>
                             </div>
-                            <p className="mt-1 text-xs text-zinc-500">Min 6 characters</p>
+                            {password.length > 0 && (
+                                <ul className="mt-2 space-y-0.5">
+                                    {[
+                                        { ok: pwHasLength, label: "At least 8 characters" },
+                                        { ok: pwHasNumber, label: "Contains a number" },
+                                        { ok: pwHasSpecial, label: "Contains a special character (!@#$%…)" },
+                                    ].map(({ ok, label }) => (
+                                        <li key={label} className={`text-xs flex items-center gap-1.5 ${ok ? "text-emerald-400" : "text-zinc-500"}`}>
+                                            <span>{ok ? "✓" : "✗"}</span>{label}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
 
                         <div>

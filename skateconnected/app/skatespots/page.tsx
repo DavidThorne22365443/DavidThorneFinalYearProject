@@ -88,15 +88,15 @@ export default function SkateSpotsPage() {
     return (
         <div className="min-h-screen bg-zinc-50 flex flex-col">
             {/* Header */}
-            <div className="px-6 py-5 bg-white border-b border-zinc-200 flex items-center gap-4">
-                <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm">← Back to map</Link>
-                <h1 className="text-xl font-bold text-zinc-900">Skate Spots</h1>
+            <div className="px-4 py-3 md:px-6 md:py-5 bg-white border-b border-zinc-200 flex items-center gap-3">
+                <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm shrink-0">← Back</Link>
+                <h1 className="text-lg md:text-xl font-bold text-zinc-900">Skate Spots</h1>
                 <span className="text-xs text-zinc-400">({filteredSpots.length}{searchQuery ? ` of ${spots.length}` : ''} spots)</span>
             </div>
 
-            <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 65px)' }}>
-                {/* Left: list */}
-                <div className="w-80 shrink-0 overflow-y-auto border-r border-zinc-200 bg-white flex flex-col">
+            <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+                {/* List */}
+                <div className="w-full md:w-80 shrink-0 overflow-y-auto border-b md:border-b-0 md:border-r border-zinc-200 bg-white flex flex-col max-h-[40vh] md:max-h-none">
                     <div className="p-3 border-b border-zinc-100">
                         <input
                             type="text"
@@ -134,8 +134,8 @@ export default function SkateSpotsPage() {
                     </div>
                 </div>
 
-                {/* Right: map + info */}
-                <div className="flex-1 relative overflow-hidden bg-zinc-100">
+                {/* Map */}
+                <div className="flex-1 relative overflow-hidden bg-zinc-100 min-h-[40vh] md:min-h-0">
                     {selectedSpot ? (
                         <>
                             <SpotViewMap key={selectedSpot.id} spot={selectedSpot} />

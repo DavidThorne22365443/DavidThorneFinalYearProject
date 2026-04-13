@@ -29,13 +29,18 @@ export default function RegisterPage() {
     const router = useRouter();
 
     const passwordsMatch = password === confirmPassword;
+    const pwHasLength = password.length >= 8;
+    const pwHasNumber = /\d/.test(password);
+    const pwHasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(password);
+    const passwordValid = pwHasLength && pwHasNumber && pwHasSpecial;
+
     const canSubmit =
         firstName.trim().length >= 1 &&
         lastName.trim().length >= 1 &&
         email.trim().length >= 1 &&
         username.trim().length >= 3 &&
-        password.length >= 6 &&
-        confirmPassword.length >= 6 &&
+        passwordValid &&
+        confirmPassword.length >= 1 &&
         passwordsMatch &&
         city &&
         skillLevel &&
@@ -49,8 +54,12 @@ export default function RegisterPage() {
             setError("Passwords do not match.");
             return;
         }
+        if (!passwordValid) {
+            setError("Password must be at least 8 characters and include a number and a special character.");
+            return;
+        }
         if (!canSubmit) {
-            setError("Please fill in all required fields. Passwords must match and be at least 6 characters.");
+            setError("Please fill in all required fields.");
             return;
         }
 
@@ -342,7 +351,19 @@ export default function RegisterPage() {
                                 {showPw ? "Hide" : "Show"}
                             </button>
                         </div>
-                        <p className="text-xs text-zinc-500 mt-1">Min 6 characters.</p>
+                        {password.length > 0 && (
+                            <ul className="mt-2 space-y-0.5">
+                                {[
+                                    { ok: pwHasLength, label: "At least 8 characters" },
+                                    { ok: pwHasNumber, label: "Contains a number" },
+                                    { ok: pwHasSpecial, label: "Contains a special character (!@#$%…)" },
+                                ].map(({ ok, label }) => (
+                                    <li key={label} className={`text-xs flex items-center gap-1.5 ${ok ? "text-emerald-400" : "text-zinc-500"}`}>
+                                        <span>{ok ? "✓" : "✗"}</span>{label}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
                     </div>
 
                     <div>
