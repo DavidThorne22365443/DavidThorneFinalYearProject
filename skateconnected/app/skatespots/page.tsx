@@ -56,7 +56,7 @@ function SpotViewMap({ spot }: { spot: Skatespot }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [spot.id]);
 
-    return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
+    return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />;
 }
 
 export default function SkateSpotsPage() {

@@ -68,7 +68,7 @@ function ParkViewMap({ park }: { park: Park }) {
         );
     }
 
-    return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
+    return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />;
 }
 
 export default function SkateparksPage() {

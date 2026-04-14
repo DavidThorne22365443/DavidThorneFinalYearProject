@@ -76,7 +76,7 @@ function MiniMap({ spot }: { spot: Skatespot }) {
         return () => { map.remove(); };
     }, [spot.latitude, spot.longitude]);
 
-    return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
+    return <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />;
 }
 
 // Draggable edit map (for approved spots)
