@@ -46,6 +46,7 @@ type Member = {
     lastName: string | null;
     showLastName: boolean;
     skillLevel: 'beginner' | 'intermediate' | 'advanced' | null;
+    favouriteTrick: string | null;
 };
 
 const SKILL_BADGE: Record<string, { label: string; className: string }> = {
@@ -685,6 +686,11 @@ const Map: React.FC = () => {
                                                             <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${SKILL_BADGE[m.skillLevel].className}`}>
                                                                 {SKILL_BADGE[m.skillLevel].label}
                                                             </span>
+                                                        )}
+                                                        {m.favouriteTrick && (
+                                                            <p className="text-[10px] text-zinc-400 italic mt-0.5 truncate">
+                                                                Fav trick: {m.favouriteTrick}
+                                                            </p>
                                                         )}
                                                     </div>
                                                 </div>

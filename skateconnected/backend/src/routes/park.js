@@ -25,6 +25,7 @@ function memberToDto(account) {
         lastName: account.showLastName ? account.lastName : null,
         showLastName: account.showLastName,
         skillLevel: account.skillLevel ?? null,
+        favouriteTrick: account.favouriteTrick ?? null,
     };
 }
 
@@ -111,7 +112,7 @@ function parksRouter(models) {
                     {
                         model: Account,
                         as: "account",
-                        attributes: ["id", "username", "firstName", "lastName", "showLastName", "skillLevel"],
+                        attributes: ["id", "username", "firstName", "lastName", "showLastName", "skillLevel", "favouriteTrick"],
                     },
                 ],
                 order: [["createdAt", "ASC"]],

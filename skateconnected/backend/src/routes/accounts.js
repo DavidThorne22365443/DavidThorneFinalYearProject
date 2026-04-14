@@ -54,13 +54,21 @@ function accountsRouter(models) {
                 return res.status(400).json({ error: "password must be at least 6 characters" });
             }
 
-            const existingUsername = await Account.findOne({ where: { username: username.trim() } });
+            const usernameTrimmed = username.trim();
+            if (usernameTrimmed.length < 3 || usernameTrimmed.length > 20) {
+                return res.status(400).json({ error: "Username must be between 3 and 20 characters." });
+            }
+            if (!/^[a-zA-Z0-9_]+$/.test(usernameTrimmed)) {
+                return res.status(400).json({ error: "Username can only contain letters, numbers, and underscores." });
+            }
+
+            const existingUsername = await Account.findOne({ where: { username: usernameTrimmed } });
             if (existingUsername) {
-                return res.status(409).json({ error: "An account with this username already exists" });
+                return res.status(409).json({ error: "That username is already taken." });
             }
             const existingEmail = await Account.findOne({ where: { email: emailTrimmed } });
             if (existingEmail) {
-                return res.status(409).json({ error: "An account with this email already exists" });
+                return res.status(409).json({ error: "An account with this email already exists." });
             }
 
             const passwordHash = await bcrypt.hash(password, 10);
@@ -72,7 +80,7 @@ function accountsRouter(models) {
                 email: emailTrimmed,
                 verificationCode,
                 verificationCodeExpiresAt,
-                username: username.trim(),
+                username: usernameTrimmed,
                 passwordHash,
                 firstName: firstName != null ? String(firstName).trim().slice(0, 50) : null,
                 lastName: lastName != null ? String(lastName).trim().slice(0, 50) : null,
@@ -178,7 +186,7 @@ function accountsRouter(models) {
             }
 
             const ok = await bcrypt.compare(password, account.passwordHash);
-            if (!ok) return res.status(401).json({ error: "invalid credentials" });
+            if (!ok) return res.status(401).json({ error: "Incorrect password." });
 
             if (!process.env.JWT_SECRET) {
                 return res.status(500).json({ error: "JWT_SECRET missing on server" });

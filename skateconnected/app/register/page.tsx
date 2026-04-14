@@ -244,7 +244,7 @@ export default function RegisterPage() {
 
                     <div>
                         <label className="block text-sm text-zinc-300 mb-1.5" htmlFor="favouriteTrick">
-                            Favourite trick
+                            Favourite trick <span className="text-zinc-500 font-normal">(optional)</span>
                         </label>
                         <input
                             id="favouriteTrick"
