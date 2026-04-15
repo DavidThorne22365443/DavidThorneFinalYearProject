@@ -227,17 +227,26 @@ export default function NewsPage() {
             <div className="max-w-3xl mx-auto px-4 pt-24 pb-16">
                 <div className="flex items-center justify-between mb-6">
                     <h1 className="text-2xl font-bold text-zinc-900">News &amp; Events</h1>
-                    {account && (
-                        <button
-                            onClick={() => {
-                                setShowForm((v) => !v);
-                                setSubmitStatus('idle');
-                                setSubmitError('');
-                            }}
-                            className="px-4 py-2 rounded-xl text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-700 transition-colors"
-                        >
-                            {showForm ? 'Cancel' : '+ Submit notice'}
-                        </button>
+                    {accountLoaded && (
+                        account ? (
+                            <button
+                                onClick={() => {
+                                    setShowForm((v) => !v);
+                                    setSubmitStatus('idle');
+                                    setSubmitError('');
+                                }}
+                                className="px-4 py-2 rounded-xl text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-700 transition-colors"
+                            >
+                                {showForm ? 'Cancel' : '+ Submit notice'}
+                            </button>
+                        ) : (
+                            <Link
+                                href="/login"
+                                className="px-4 py-2 rounded-xl text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-700 transition-colors"
+                            >
+                                + Submit notice
+                            </Link>
+                        )
                     )}
                 </div>
 
@@ -315,7 +324,7 @@ export default function NewsPage() {
                                             )}
                                             <p className="text-sm text-zinc-700 mt-2 whitespace-pre-wrap">{n.content}</p>
                                             <p className="text-xs text-zinc-400 mt-2">
-                                                Submitted by {n.addedByFirstName || n.addedByUsername} &middot; {new Date(n.createdAt).toLocaleDateString('en-IE')}
+                                                Submitted by @{n.addedByUsername} &middot; {new Date(n.createdAt).toLocaleDateString('en-IE')}
                                             </p>
                                         </div>
                                         <div className="flex flex-col gap-2 shrink-0">
