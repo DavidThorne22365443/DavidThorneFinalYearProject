@@ -86,7 +86,8 @@ export default function SkateparksPage() {
         return parks.filter((p) =>
             p.name.toLowerCase().includes(q) ||
             (p.city ?? '').toLowerCase().includes(q) ||
-            (p.county ?? '').toLowerCase().includes(q)
+            (p.county ?? '').toLowerCase().includes(q) ||
+            (p.address ?? '').toLowerCase().includes(q)
         );
     }, [parks, searchQuery]);
 
@@ -131,7 +132,7 @@ export default function SkateparksPage() {
                             >
                                 <p className="font-medium text-zinc-900 text-sm truncate">{park.name}</p>
                                 <p className="text-xs text-zinc-400 mt-0.5">
-                                    {[park.city, park.county].filter(Boolean).join(', ') || 'No location set'}
+                                    {[park.city, park.county].filter(Boolean).join(', ') || park.address || 'No location set'}
                                 </p>
                             </button>
                         ))}
