@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -53,6 +53,9 @@ function MiniMap({ spot }: { spot: Skatespot }) {
         });
 
         map.on('load', () => {
+            map.resize();
+            map.jumpTo({ center: [Number(spot.longitude), Number(spot.latitude)], zoom: 15 });
+
             const el = document.createElement('div');
             el.style.cssText = `
                 width: 28px; height: 28px;
@@ -105,6 +108,9 @@ function SpotEditMap({
         });
 
         map.on('load', () => {
+            map.resize();
+            map.jumpTo({ center: [initialLng, initialLat], zoom: 15 });
+
             const el = document.createElement('div');
             el.style.cssText = `
                 width: 28px; height: 28px;
@@ -141,6 +147,7 @@ function SpotEditMap({
 export default function SkatespotAdminPage() {
     const [pending, setPending] = useState<Skatespot[]>([]);
     const [approved, setApproved] = useState<Skatespot[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -153,6 +160,24 @@ export default function SkatespotAdminPage() {
     const [editSpotLng, setEditSpotLng] = useState(0);
     const [editSpotLoading, setEditSpotLoading] = useState(false);
     const [editSpotError, setEditSpotError] = useState<string | null>(null);
+
+    const filteredPending = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return pending;
+        return pending.filter((s) =>
+            s.name.toLowerCase().includes(q) ||
+            (s.nearby ?? '').toLowerCase().includes(q)
+        );
+    }, [pending, searchQuery]);
+
+    const filteredApproved = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return approved;
+        return approved.filter((s) =>
+            s.name.toLowerCase().includes(q) ||
+            (s.nearby ?? '').toLowerCase().includes(q)
+        );
+    }, [approved, searchQuery]);
 
     async function load() {
         setLoading(true);
@@ -257,17 +282,26 @@ export default function SkatespotAdminPage() {
     const isApprovedPreview = previewSpot?.approved === true;
 
     return (
-        <div className="min-h-screen bg-zinc-50 flex flex-col">
+        <div className="h-screen bg-zinc-50 flex flex-col">
             {/* Header */}
             <div className="px-4 py-3 md:px-6 md:py-5 bg-white border-b border-zinc-200 flex items-center gap-3">
                 <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm shrink-0">← Back</Link>
                 <h1 className="text-lg md:text-xl font-bold text-zinc-900">Skatespot Admin</h1>
             </div>
 
-            <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+            <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
                 {/* Lists */}
-                <div className="w-full md:w-96 shrink-0 overflow-y-auto border-b md:border-b-0 md:border-r border-zinc-200 bg-white flex flex-col max-h-[45vh] md:max-h-none">
-                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                <div className="w-full md:w-96 shrink-0 overflow-hidden border-b md:border-b-0 md:border-r border-zinc-200 bg-white flex flex-col max-h-[45vh] md:max-h-none">
+                    <div className="p-3 border-b border-zinc-100 shrink-0">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search skate spots…"
+                            className="w-full text-sm border border-zinc-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-zinc-50"
+                        />
+                    </div>
+                    <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-6">
                         {loading && <p className="text-sm text-zinc-500">Loading…</p>}
                         {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
@@ -276,13 +310,16 @@ export default function SkatespotAdminPage() {
                                 {/* Pending */}
                                 <section>
                                     <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-                                        Pending Approval ({pending.length})
+                                        Pending Approval ({filteredPending.length}{searchQuery && filteredPending.length !== pending.length ? ` of ${pending.length}` : ''})
                                     </h2>
                                     {pending.length === 0 && (
                                         <p className="text-sm text-zinc-400 italic">No spots awaiting approval.</p>
                                     )}
+                                    {pending.length > 0 && filteredPending.length === 0 && (
+                                        <p className="text-sm text-zinc-400 italic">No pending spots match your search.</p>
+                                    )}
                                     <div className="space-y-2">
-                                        {pending.map((spot) => (
+                                        {filteredPending.map((spot) => (
                                             <div
                                                 key={spot.id}
                                                 onClick={() => setPreviewSpot(previewSpot?.id === spot.id ? null : spot)}
@@ -342,13 +379,16 @@ export default function SkatespotAdminPage() {
                                 {/* Approved */}
                                 <section>
                                     <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-                                        Approved ({approved.length})
+                                        Approved ({filteredApproved.length}{searchQuery && filteredApproved.length !== approved.length ? ` of ${approved.length}` : ''})
                                     </h2>
                                     {approved.length === 0 && (
                                         <p className="text-sm text-zinc-400 italic">No approved spots yet.</p>
                                     )}
+                                    {approved.length > 0 && filteredApproved.length === 0 && (
+                                        <p className="text-sm text-zinc-400 italic">No approved spots match your search.</p>
+                                    )}
                                     <div className="space-y-2">
-                                        {approved.map((spot) => (
+                                        {filteredApproved.map((spot) => (
                                             <div
                                                 key={spot.id}
                                                 onClick={() => setPreviewSpot(previewSpot?.id === spot.id ? null : spot)}

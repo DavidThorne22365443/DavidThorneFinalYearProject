@@ -45,6 +45,9 @@ function ParkEditMap({
         });
 
         map.on('load', () => {
+            map.resize();
+            map.jumpTo({ center: [initialLng, initialLat], zoom: 15 });
+
             const el = document.createElement('div');
             el.style.cssText = `
                 width: 32px; height: 32px;
@@ -106,7 +109,20 @@ export default function ParkAdminPage() {
     const [editLoading, setEditLoading] = useState(false);
     const [editError, setEditError] = useState<string | null>(null);
 
+    const [searchQuery, setSearchQuery] = useState('');
+
     const selectedPark = useMemo(() => parks.find((p) => p.id === selectedId) ?? null, [parks, selectedId]);
+
+    const filteredParks = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return parks;
+        return parks.filter((p) =>
+            p.name.toLowerCase().includes(q) ||
+            (p.city ?? '').toLowerCase().includes(q) ||
+            (p.county ?? '').toLowerCase().includes(q) ||
+            (p.address ?? '').toLowerCase().includes(q)
+        );
+    }, [parks, searchQuery]);
 
     useEffect(() => {
         (async () => {
@@ -208,22 +224,31 @@ export default function ParkAdminPage() {
     );
 
     return (
-        <div className="min-h-screen bg-zinc-50 flex flex-col">
+        <div className="h-screen bg-zinc-50 flex flex-col">
             {/* Header */}
             <div className="px-4 py-3 md:px-6 md:py-5 bg-white border-b border-zinc-200 flex items-center gap-3">
                 <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm shrink-0">← Back</Link>
                 <h1 className="text-lg md:text-xl font-bold text-zinc-900">Skatepark Admin</h1>
-                <span className="text-xs text-zinc-400">({parks.length} parks)</span>
+                <span className="text-xs text-zinc-400">({filteredParks.length}{searchQuery ? ` of ${parks.length}` : ''} parks)</span>
             </div>
 
-            <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+            <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
                 {/* List */}
-                <div className="w-full md:w-80 shrink-0 overflow-y-auto border-b md:border-b-0 md:border-r border-zinc-200 bg-white flex flex-col max-h-[35vh] md:max-h-none">
+                <div className="w-full md:w-80 shrink-0 overflow-hidden border-b md:border-b-0 md:border-r border-zinc-200 bg-white flex flex-col max-h-[35vh] md:max-h-none">
+                    <div className="p-3 border-b border-zinc-100 shrink-0">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search skateparks…"
+                            className="w-full text-sm border border-zinc-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-300 bg-zinc-50"
+                        />
+                    </div>
                     {loading && <p className="p-4 text-sm text-zinc-400">Loading…</p>}
                     {error && <p className="p-4 text-sm text-red-600">{error}</p>}
 
-                    <div className="flex-1 overflow-y-auto">
-                        {parks.map((park) => (
+                    <div className="flex-1 overflow-y-auto min-h-0">
+                        {filteredParks.map((park) => (
                             <button
                                 key={park.id}
                                 onClick={() => setSelectedId(park.id)}
@@ -231,10 +256,13 @@ export default function ParkAdminPage() {
                             >
                                 <p className="font-medium text-zinc-900 text-sm truncate">{park.name}</p>
                                 <p className="text-xs text-zinc-400 mt-0.5">
-                                    {[park.city, park.county].filter(Boolean).join(', ') || 'No location set'}
+                                    {[park.city, park.county].filter(Boolean).join(', ') || park.address || 'No location set'}
                                 </p>
                             </button>
                         ))}
+                        {!loading && filteredParks.length === 0 && parks.length > 0 && (
+                            <p className="p-4 text-sm text-zinc-400 italic">No parks match your search.</p>
+                        )}
                         {!loading && parks.length === 0 && (
                             <p className="p-4 text-sm text-zinc-400 italic">No parks yet. Add them from the map.</p>
                         )}

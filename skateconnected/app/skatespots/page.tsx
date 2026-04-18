@@ -32,6 +32,9 @@ function SpotViewMap({ spot }: { spot: Skatespot }) {
         });
 
         map.on('load', () => {
+            map.resize();
+            map.jumpTo({ center: [lng, lat], zoom: 15 });
+
             const el = document.createElement('div');
             el.style.cssText = `
                 width: 28px; height: 28px;
@@ -86,7 +89,7 @@ export default function SkateSpotsPage() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-zinc-50 flex flex-col">
+        <div className="h-screen bg-zinc-50 flex flex-col">
             {/* Header */}
             <div className="px-4 py-3 md:px-6 md:py-5 bg-white border-b border-zinc-200 flex items-center gap-3">
                 <Link href="/map" className="text-zinc-400 hover:text-zinc-700 text-sm shrink-0">← Back</Link>
@@ -94,10 +97,10 @@ export default function SkateSpotsPage() {
                 <span className="text-xs text-zinc-400">({filteredSpots.length}{searchQuery ? ` of ${spots.length}` : ''} spots)</span>
             </div>
 
-            <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+            <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
                 {/* List */}
-                <div className="w-full md:w-80 shrink-0 overflow-y-auto border-b md:border-b-0 md:border-r border-zinc-200 bg-white flex flex-col max-h-[40vh] md:max-h-none">
-                    <div className="p-3 border-b border-zinc-100">
+                <div className="w-full md:w-80 shrink-0 overflow-hidden border-b md:border-b-0 md:border-r border-zinc-200 bg-white flex flex-col max-h-[40vh] md:max-h-none">
+                    <div className="p-3 border-b border-zinc-100 shrink-0">
                         <input
                             type="text"
                             value={searchQuery}
@@ -109,7 +112,7 @@ export default function SkateSpotsPage() {
                     {loading && <p className="p-4 text-sm text-zinc-400">Loading…</p>}
                     {error && <p className="p-4 text-sm text-red-600">{error}</p>}
 
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="flex-1 overflow-y-auto min-h-0">
                         {filteredSpots.map((spot) => (
                             <button
                                 key={spot.id}
