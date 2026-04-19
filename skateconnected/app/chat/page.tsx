@@ -496,7 +496,7 @@ export default function ChatPage() {
     );
 
     return (
-        <div className="flex h-screen w-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
+        <div className="flex fixed inset-0 bg-gray-50 dark:bg-gray-900 overflow-hidden">
             {sidebar}
             {threadPanel}
         </div>
