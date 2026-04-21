@@ -57,32 +57,32 @@ export default function LoginClient() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center px-4 bg-zinc-950 text-zinc-100">
-            <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/50 shadow-xl backdrop-blur p-6">
+        <div className="min-h-screen flex items-center justify-center px-4 bg-zinc-50">
+            <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white shadow-sm p-6">
                 <div className="mb-6">
-                    <Link href="/map" className="text-xs text-zinc-500 hover:text-zinc-300 mb-4 inline-block">
+                    <Link href="/map" className="text-xs text-zinc-400 hover:text-zinc-700 mb-4 inline-block">
                         ← Back to map
                     </Link>
-                    <h1 className="text-2xl font-semibold">Welcome back</h1>
-                    <p className="text-sm text-zinc-400 mt-1">
-                        Log in to continue to <span className="text-zinc-200">skateconnected</span>.
+                    <h1 className="text-2xl font-bold text-zinc-900">Welcome back</h1>
+                    <p className="text-sm text-zinc-500 mt-1">
+                        Log in to continue to <span className="text-orange-500 font-medium">skateconnected</span>.
                     </p>
                 </div>
 
                 {verified && (
-                    <div className="mb-4 rounded-xl border border-green-800/60 bg-green-950/40 px-4 py-3 text-sm text-green-200">
+                    <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                         Email verified. You can now log in.
                     </div>
                 )}
                 {error && (
-                    <div className="mb-4 rounded-xl border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+                    <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                         {error}
                     </div>
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm text-zinc-300 mb-2" htmlFor="username">
+                        <label className="block text-sm font-medium text-zinc-700 mb-1.5" htmlFor="username">
                             Username
                         </label>
                         <input
@@ -92,12 +92,12 @@ export default function LoginClient() {
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             placeholder="e.g. david"
-                            className="w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 outline-none focus:ring-2 focus:ring-zinc-600"
+                            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-900 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm text-zinc-300 mb-2" htmlFor="password">
+                        <label className="block text-sm font-medium text-zinc-700 mb-1.5" htmlFor="password">
                             Password
                         </label>
                         <div className="relative">
@@ -108,12 +108,12 @@ export default function LoginClient() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••"
-                                className="w-full rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 pr-12 outline-none focus:ring-2 focus:ring-zinc-600"
+                                className="w-full rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-900 px-4 py-2.5 pr-16 text-sm outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPw((s) => !s)}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
                                 aria-label={showPw ? "Hide password" : "Show password"}
                             >
                                 {showPw ? "Hide" : "Show"}
@@ -121,8 +121,8 @@ export default function LoginClient() {
                         </div>
 
                         <div className="mt-2 flex items-center justify-between text-xs">
-                            <span className="text-zinc-500">Min 6 characters</span>
-                            <Link href="/forgot-password" className="text-zinc-300 hover:text-white">
+                            <span className="text-zinc-400">Min 6 characters</span>
+                            <Link href="/forgot-password" className="text-zinc-500 hover:text-zinc-900">
                                 Forgot password?
                             </Link>
                         </div>
@@ -131,14 +131,14 @@ export default function LoginClient() {
                     <button
                         type="submit"
                         disabled={!canSubmit}
-                        className="w-full rounded-xl bg-white text-zinc-950 font-medium py-3 hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full rounded-lg bg-zinc-900 text-white font-medium py-2.5 text-sm hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                         {loading ? "Logging in..." : "Log in"}
                     </button>
 
-                    <p className="text-center text-sm text-zinc-400">
+                    <p className="text-center text-sm text-zinc-500">
                         Don't have an account?{" "}
-                        <Link href="/register" className="text-zinc-200 hover:text-white">
+                        <Link href="/register" className="text-zinc-900 font-medium hover:text-orange-500">
                             Create one
                         </Link>
                     </p>
